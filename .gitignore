@@ -136,6 +136,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.local
+.env.production
 .envrc
 .venv
 env/
@@ -143,6 +145,27 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Azure Developer CLI
+.azure/
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# Data files (large)
+data/product_data.json
+data/reference_data.json
+
+# Docker
+docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Spyder project settings
 .spyderproject

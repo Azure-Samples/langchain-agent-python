@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: langchain-agent-mcp
+metadata:
+  template: langchain-agent-mcp@0.0.1
+  description: LangChain agent with Model Context Protocol (MCP) using Azure OpenAI, Container Apps and Azure Functions
+
+services:
+  mcp-server:
+    project: ./mcp
+    language: python
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+      context: ./
+  agent:
+    project: ./agent
+    language: python
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+      context: ./
+
+hooks:
+  postprovision:
+    shell: sh
+    run: ./infra/hooks/postprovision.sh
+    interactive: true
+    continueOnError: false
