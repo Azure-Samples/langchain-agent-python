@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: MCP Server",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/mcp/mcp_server.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/mcp",
+      "envFile": "${workspaceFolder}/.env.local",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: Agent",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/agent/agent.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/agent",
+      "envFile": "${workspaceFolder}/.env.local",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: Database Generator",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/data/generate_database.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/data",
+      "envFile": "${workspaceFolder}/.env.local",
+      "justMyCode": true
+    }
+  ]
+}

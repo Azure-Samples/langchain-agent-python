@@ -1,0 +1,15 @@
+{
+  "resourcesResourceGroups": "rg-",
+  "storageStorageAccounts": "st",
+  "keyVaultVaults": "kv-",
+  "appManagedEnvironments": "cae-",
+  "appContainerApps": "ca-",
+  "containerRegistryRegistries": "cr",
+  "cognitiveServicesAccounts": "cog-",
+  "managedIdentityUserAssignedIdentities": "id-",
+  "operationalInsightsWorkspaces": "log-",
+  "insightsComponents": "appi-",
+  "dBforPostgreSQLServers": "psql-",
+  "webSitesFunctions": "func-",
+  "webServerFarms": "plan-"
+}

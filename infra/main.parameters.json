@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "location": {
+      "value": "${AZURE_LOCATION=eastus}"
+    },
+    "postgresLocation": {
+      "value": "${POSTGRES_LOCATION=eastus2}"
+    },
+    "principalId": {
+      "value": "${AZURE_PRINCIPAL_ID}"
+    },
+    "openAiDeploymentName": {
+      "value": "gpt-5-mini"
+    },
+    "openAiModelName": {
+      "value": "gpt-5-mini"
+    },
+    "openAiModelVersion": {
+      "value": "2025-08-07"
+    },
+    "mcpServerExists": {
+      "value": "${MCP_SERVER_EXISTS=false}"
+    },
+    "agentExists": {
+      "value": "${AGENT_EXISTS=false}"
+    }
+  }
+}

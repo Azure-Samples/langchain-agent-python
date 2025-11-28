@@ -1,0 +1,25 @@
+/home/vscode/.local/lib/python3.11/site-packages/fastmcp/server/server.py:294: DeprecationWarning: Providing `stateless_http` when creating a server is deprecated. Provide it when calling `run` or as a global setting instead.
+  self._handle_deprecated_settings(
+/workspaces/langchain-agent-python/mcp/app.py:287: DeprecationWarning: The streamable_http_app method is deprecated (as of 2.3.2). Use http_app() instead.
+  app = mcp.streamable_http_app()
+INFO:__main__:Initializing MCP server...
+INFO:__main__:✅ Database provider initialized
+INFO:azure.identity._credentials.environment:Incomplete environment configuration for EnvironmentCredential. These variables are set: AZURE_TENANT_ID
+INFO:azure.identity._credentials.managed_identity:ManagedIdentityCredential will use IMDS
+INFO:__main__:✅ Azure OpenAI client initialized: https://cog-qq6ha2tconjz4.openai.azure.com/
+INFO:__main__:✅ Embedding provider initialized
+INFO:__main__:✅ MCP server ready
+/home/vscode/.local/lib/python3.11/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+/home/vscode/.local/lib/python3.11/site-packages/uvicorn/protocols/websockets/websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [207432]
+INFO:     Waiting for application startup.
+INFO:mcp.server.streamable_http_manager:StreamableHTTP session manager started
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:mcp.server.streamable_http_manager:StreamableHTTP session manager shutting down
+INFO:     Application shutdown complete.
+INFO:     Finished server process [207432]

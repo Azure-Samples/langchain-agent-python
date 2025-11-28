@@ -1,0 +1,15 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.debugpy",
+    "ms-azuretools.vscode-bicep",
+    "ms-azuretools.vscode-docker",
+    "ms-vscode.azurecli",
+    "GitHub.copilot",
+    "GitHub.copilot-chat",
+    "ms-toolsai.jupyter",
+    "redhat.vscode-yaml",
+    "esbenp.prettier-vscode"
+  ]
+}
