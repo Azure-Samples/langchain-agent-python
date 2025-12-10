@@ -7,7 +7,7 @@ param containerAppsEnvironmentName string
 param containerRegistryName string
 param postgresConnectionString string
 param openAiEndpoint string
-param embeddingDeployment string = 'text-embedding-3-small'
+param embeddingDeployment string = 'text-embedding-ada-002'
 param applicationInsightsConnectionString string
 param exists bool
 

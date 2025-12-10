@@ -177,7 +177,7 @@ class SemanticSearchEmbedding:
             await ctx.report_progress(progress=1, total=3)
             await ctx.info(f"Getting embedding for query: {query[:50]}...")
 
-        # Get embedding for query (1536-dim from text-embedding-3-small)
+        # Get embedding for query (1536-dim from text-embedding-ada-002)
         query_embedding = await self.get_embedding(query)
 
         # Convert embedding list to pgvector string format
@@ -245,7 +245,7 @@ async def lifespan(mcp_server: FastMCP):
     # Initialize embedding provider
     openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
     embedding_deployment = os.getenv(
-        "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"
+        "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002"
     )
 
     if openai_endpoint:

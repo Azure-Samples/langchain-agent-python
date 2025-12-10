@@ -37,29 +37,29 @@ This is a simplified, Python version inspired by the [Microsoft AI Tour WRK540 w
 
 ## Architecture
 
-```
+```markdown
 ┌─────────────────────────────────────────────────────────────┐
 │                        Azure Cloud                          │
 │                                                             │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │         Azure Container Apps Environment             │  │
-│  │                                                        │  │
-│  │  ┌─────────────────┐      ┌──────────────────┐      │  │
-│  │  │  Agent Container │──────│  MCP Server      │      │  │
-│  │  │  - LangChain     │ HTTP │  - PostgreSQL    │      │  │
-│  │  │  - Responses API │◄─────│  - Semantic      │      │  │
-│  │  │                  │      │    Search       │      │  │
-│  │  └─────────┬────────┘      └────────┬─────────┘      │  │
-│  │            │                         │                 │  │
-│  └────────────┼─────────────────────────┼─────────────────┘  │
-│               │ Entra ID                │                    │
-│               ▼                         ▼                    │
-│  ┌─────────────────────────┐  ┌──────────────────────┐     │
-│  │   Azure OpenAI          │  │  PostgreSQL          │     │
-│  │   - GPT-5-mini          │  │  - pgvector          │     │
-│  │   - text-embedding-     │  │  - Zava database     │     │
-│  │     3-small             │  │                      │     │
-│  └─────────────────────────┘  └──────────────────────┘     │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │         Azure Container Apps Environment             │   │
+│  │                                                      │   │
+│  │  ┌─────────────────┐       ┌──────────────────┐      │   │
+│  │  │  Agent Container │──────│  MCP Server      │      │   │
+│  │  │  - LangChain     │ HTTP │  - PostgreSQL    │      │   │
+│  │  │  - Responses API │◄─────│  - Semantic      │      │   │
+│  │  │                  │      │    Search        │      │   │
+│  │  └─────────┬────────┘      └────────┬─────────┘      │   │
+│  │            │                         │               │   │
+│  └────────────┼─────────────────────────┼───────────────┘   │
+│               │ Entra ID                │                   │
+│               ▼                         ▼                   │
+│  ┌─────────────────────────┐  ┌──────────────────────┐      │
+│  │   Azure OpenAI          │  │  PostgreSQL          │      │
+│  │   - GPT-5-mini          │  │  - pgvector          │      │
+│  │   - text-embedding-     │  │  - Zava database     │      │
+│  │     3-small             │  │                      │      │
+│  └─────────────────────────┘  └──────────────────────┘      │
 └─────────────────────────────────────────────────────────────┘
 
 Local Development:
@@ -186,53 +186,6 @@ The project includes pre-configured VS Code tasks. Press `Cmd+Shift+P` (Mac) or 
 
 - MCP Server: `8000`
 - Agent/Chat UI: `8001` (set via `PORT` environment variable)
-
-## Project Structure
-
-```
-langchain-agent-python/
-├── azure.yaml                      # Azure Developer CLI configuration
-├── README.md                       # This file
-├── LICENSE                         # MIT License
-├── SECURITY.md                     # Security policy
-├── SUPPORT.md                      # Support information
-├── CODE_OF_CONDUCT.md             # Code of conduct
-├── .env.example                    # Template for environment variables
-├── .gitignore                      # Git ignore rules
-│
-├── agent/                          # LangChain Agent Service
-│   ├── agent.py                    # Main agent with Responses API
-│   ├── config.py                   # Pydantic configuration
-│   ├── instructions.txt            # System prompt for agent
-│   ├── requirements.txt            # Python dependencies
-│   ├── Dockerfile                  # Container definition
-│   └── .dockerignore              # Docker ignore rules
-│
-├── mcp/                            # MCP Server Service
-│   ├── mcp_server.py              # FastMCP server with tools
-│   ├── requirements.txt            # Python dependencies
-│   ├── Dockerfile                  # Container definition
-│   └── .dockerignore              # Docker ignore rules
-│
-└── infra/                          # Infrastructure as Code
-    ├── main.bicep                  # Main deployment template
-    ├── main.parameters.json        # Default parameters
-    ├── abbreviations.json          # Resource name abbreviations
-    ├── core/                       # Reusable Bicep modules
-    │   ├── ai/
-    │   │   └── cognitiveservices.bicep
-    │   ├── host/
-    │   │   ├── container-apps-environment.bicep
-    │   │   └── container-registry.bicep
-    │   ├── monitor/
-    │   │   └── monitoring.bicep
-    │   └── security/
-    │       ├── managed-identity.bicep
-    │       └── role.bicep
-    └── app/                        # Application-specific modules
-        ├── agent.bicep
-        └── mcp-server.bicep
-```
 
 ## How It Works
 

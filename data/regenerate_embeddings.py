@@ -38,7 +38,7 @@ async def regenerate_embeddings():
         sys.exit(1)
 
     embedding_model = os.environ.get(
-        "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"
+        "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002"
     )
     logger.info(f"Using endpoint: {endpoint}")
     logger.info(f"Using embedding model: {embedding_model}")

@@ -501,10 +501,10 @@
                 }
               },
               {
-                "name": "text-embedding-3-small",
+                "name": "text-embedding-ada-002",
                 "model": {
                   "format": "OpenAI",
-                  "name": "text-embedding-3-small",
+                  "name": "text-embedding-ada-002",
                   "version": "1"
                 },
                 "sku": {
@@ -888,7 +888,7 @@
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'openai'), '2025-04-01').outputs.endpoint.value]"
           },
           "embeddingDeployment": {
-            "value": "text-embedding-3-small"
+            "value": "text-embedding-ada-002"
           },
           "exists": {
             "value": "[parameters('mcpServerExists')]"
@@ -933,7 +933,7 @@
             },
             "embeddingDeployment": {
               "type": "string",
-              "defaultValue": "text-embedding-3-small"
+              "defaultValue": "text-embedding-ada-002"
             },
             "applicationInsightsConnectionString": {
               "type": "string"
@@ -1731,7 +1731,7 @@
     },
     "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": {
       "type": "string",
-      "value": "text-embedding-3-small"
+      "value": "text-embedding-ada-002"
     },
     "POSTGRES_HOST": {
       "type": "string",
