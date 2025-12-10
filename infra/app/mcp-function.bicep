@@ -17,7 +17,7 @@ param postgresConnectionString string
 param openAiEndpoint string
 
 @description('Azure OpenAI embedding deployment name')
-param embeddingDeployment string = 'text-embedding-3-small'
+param embeddingDeployment string = 'text-embedding-ada-002'
 
 var resourceToken = uniqueString(resourceGroup().id, name)
 

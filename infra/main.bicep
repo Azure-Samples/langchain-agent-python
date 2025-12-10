@@ -110,11 +110,11 @@ module openAi 'core/ai/cognitiveservices.bicep' = {
         }
       }
       {
-        name: 'text-embedding-3-small'
+        name: 'text-embedding-ada-002'
         model: {
           format: 'OpenAI'
-          name: 'text-embedding-3-small'
-          version: '1'
+          name: 'text-embedding-ada-002'
+          version: '2'
         }
         sku: {
           name: 'Standard'
@@ -156,7 +156,7 @@ module mcpServer 'app/mcp-containerapp.bicep' = {
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
     postgresConnectionString: postgres.outputs.connectionString
     openAiEndpoint: openAi.outputs.endpoint
-    embeddingDeployment: 'text-embedding-3-small'
+    embeddingDeployment: 'text-embedding-ada-002'
     exists: mcpServerExists
   }
 }
@@ -218,10 +218,11 @@ module openAiRoleDev 'core/security/role.bicep' = if (!empty(principalId)) {
 output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
 output AZURE_RESOURCE_GROUP string = rg.name
+output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.outputs.loginServer
 
 output AZURE_OPENAI_ENDPOINT string = openAi.outputs.endpoint
 output AZURE_OPENAI_DEPLOYMENT string = openAiDeploymentName
-output AZURE_OPENAI_EMBEDDING_DEPLOYMENT string = 'text-embedding-3-small'
+output AZURE_OPENAI_EMBEDDING_DEPLOYMENT string = 'text-embedding-ada-002'
 
 output POSTGRES_HOST string = postgres.outputs.fqdn
 output POSTGRES_DATABASE string = postgres.outputs.databaseName

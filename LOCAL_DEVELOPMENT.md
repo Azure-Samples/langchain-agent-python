@@ -44,7 +44,7 @@ python regenerate_embeddings.py
 # 5. Run MCP server and agent (see below)
 ```
 
-> **⚠️ Important:** The pre-generated embeddings in `products_pregenerated.json` were created with a specific embedding model. If your Azure OpenAI deployment uses a different embedding model (e.g., `text-embedding-ada-002` vs `text-embedding-3-small`), you MUST run `regenerate_embeddings.py` after initializing the database. Otherwise, semantic product search will not work correctly.
+> **⚠️ Important:** The pre-generated embeddings in `products_pregenerated.json` were created with a specific embedding model. If your Azure OpenAI deployment uses a different embedding model (e.g., `text-embedding-ada-002` vs `text-embedding-ada-002`), you MUST run `regenerate_embeddings.py` after initializing the database. Otherwise, semantic product search will not work correctly.
 
 ## Prerequisites
 
@@ -71,7 +71,7 @@ cp .env.example .env.local
 # Azure OpenAI (required - uses cloud instance)
 AZURE_OPENAI_ENDPOINT=https://your-openai.openai.azure.com/
 AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
-AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-ada-002  # or text-embedding-3-small
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-ada-002  # or text-embedding-ada-002
 AZURE_TENANT_ID=your-tenant-id
 
 # MCP Server (local)
@@ -85,7 +85,7 @@ POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/zava
 POSTGRES_URL=postgresql://pgadmin:password@psql-xxx.postgres.database.azure.com:5432/zava?sslmode=require
 ```
 
-> **Note:** The `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` must match the embedding model deployed in your Azure OpenAI resource. Common values are `text-embedding-ada-002` or `text-embedding-3-small`. After changing this, run `data/regenerate_embeddings.py` to update the database.
+> **Note:** The `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` must match the embedding model deployed in your Azure OpenAI resource. Common values are `text-embedding-ada-002` or `text-embedding-ada-002`. After changing this, run `data/regenerate_embeddings.py` to update the database.
 
 ### 2. Start Local PostgreSQL (Option 2)
 

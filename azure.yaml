@@ -5,6 +5,11 @@ metadata:
   template: langchain-agent-mcp@0.0.1
   description: LangChain agent with Model Context Protocol (MCP) using Azure OpenAI, Container Apps and Azure Functions
 
+infra:
+  provider: bicep
+  path: ./infra
+  module: main
+
 services:
   mcp-server:
     project: ./mcp
