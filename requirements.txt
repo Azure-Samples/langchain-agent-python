@@ -1,2 +1,2 @@
-langchain-openai==1.0.1
+langchain-openai==1.1.14
 azure-identity==1.25.1
