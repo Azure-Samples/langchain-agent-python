@@ -28,6 +28,13 @@ param openAiModelVersion string = '2025-08-07'
 @description('Azure OpenAI model capacity')
 param openAiModelCapacity int = 100
 
+@allowed([
+  'sqlite'
+  'postgres'
+])
+@description('Database backend. sqlite (recommended): ~5 min azd up, curated sample dataset (424 products with embeddings) baked into the MCP container — ideal for trying the agent. postgres: ~20 min azd up, provisions a Postgres Flexible Server with pgvector and seeds the full retail dataset — production-grade and supports updates.')
+param databaseType string
+
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
@@ -125,9 +132,10 @@ module openAi 'core/ai/cognitiveservices.bicep' = {
   }
 }
 
-// PostgreSQL Database with pgvector
+// PostgreSQL Database with pgvector — only when databaseType == 'postgres'
+var usePostgres = databaseType == 'postgres'
 var postgresAdminPassword = '${uniqueString(resourceToken)}Pg#'
-module postgres 'app/postgres.bicep' = {
+module postgres 'app/postgres.bicep' = if (usePostgres) {
   name: 'postgres'
   scope: rg
   params: {
@@ -154,7 +162,7 @@ module mcpServer 'app/mcp-containerapp.bicep' = {
     containerAppsEnvironmentName: containerAppsEnvironment.outputs.name
     containerRegistryName: containerRegistry.outputs.name
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
-    postgresConnectionString: postgres.outputs.connectionString
+    postgresConnectionString: usePostgres ? postgres.outputs.connectionString : ''
     openAiEndpoint: openAi.outputs.endpoint
     embeddingDeployment: 'text-embedding-ada-002'
     exists: mcpServerExists
@@ -224,10 +232,11 @@ output AZURE_OPENAI_ENDPOINT string = openAi.outputs.endpoint
 output AZURE_OPENAI_DEPLOYMENT string = openAiDeploymentName
 output AZURE_OPENAI_EMBEDDING_DEPLOYMENT string = 'text-embedding-ada-002'
 
-output POSTGRES_HOST string = postgres.outputs.fqdn
-output POSTGRES_DATABASE string = postgres.outputs.databaseName
-output POSTGRES_URL string = postgres.outputs.connectionString
-output POSTGRES_SERVER_NAME string = postgres.outputs.serverName
+output DATABASE_TYPE string = databaseType
+output POSTGRES_HOST string = usePostgres ? postgres.outputs.fqdn : ''
+output POSTGRES_DATABASE string = usePostgres ? postgres.outputs.databaseName : ''
+output POSTGRES_URL string = usePostgres ? postgres.outputs.connectionString : ''
+output POSTGRES_SERVER_NAME string = usePostgres ? postgres.outputs.serverName : ''
 
 output MCP_SERVER_URL string = mcpServer.outputs.uri
 output AGENT_URL string = agent.outputs.uri

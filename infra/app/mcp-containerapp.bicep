@@ -5,7 +5,7 @@ param tags object = {}
 param identityName string
 param containerAppsEnvironmentName string
 param containerRegistryName string
-param postgresConnectionString string
+param postgresConnectionString string = ''
 param openAiEndpoint string
 param embeddingDeployment string = 'text-embedding-ada-002'
 param applicationInsightsConnectionString string

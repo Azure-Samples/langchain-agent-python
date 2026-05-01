@@ -23,6 +23,9 @@
     "openAiModelVersion": {
       "value": "2025-08-07"
     },
+    "databaseType": {
+      "value": "${DATABASE_TYPE}"
+    },
     "mcpServerExists": {
       "value": "${MCP_SERVER_EXISTS=false}"
     },

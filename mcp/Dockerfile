@@ -15,6 +15,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system -r requirements.txt
 
 COPY *.py .
+COPY data/ ./data/
 
 EXPOSE 8000
 

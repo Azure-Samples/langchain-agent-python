@@ -14,11 +14,25 @@ echo "Running post-provision setup..."
 
 # ---- Resolve env ----------------------------------------------------------
 ENV_VALUES=$(azd env get-values --output json 2>/dev/null || echo '{}')
+DATABASE_TYPE=$(printf '%s' "$ENV_VALUES" | jq -r '.DATABASE_TYPE // "sqlite"')
 POSTGRES_URL=$(printf '%s' "$ENV_VALUES" | jq -r '.POSTGRES_URL // empty')
 POSTGRES_HOST=$(printf '%s' "$ENV_VALUES" | jq -r '.POSTGRES_HOST // empty')
 POSTGRES_RG=$(printf '%s' "$ENV_VALUES" | jq -r '.AZURE_RESOURCE_GROUP // empty')
 AGENT_URL=$(printf '%s' "$ENV_VALUES" | jq -r '.AGENT_URL // empty')
 MCP_SERVER_URL=$(printf '%s' "$ENV_VALUES" | jq -r '.MCP_SERVER_URL // empty')
+
+# Skip Postgres seeding entirely on the SQLite (minimal) flavour — the
+# bundled SQLite file in the MCP container image is already populated.
+if [ "$DATABASE_TYPE" != "postgres" ]; then
+  echo "ℹ️  Database type is '$DATABASE_TYPE' — skipping Postgres seed (data ships in the MCP image)."
+  if [ -n "$AGENT_URL" ]; then
+    echo "✅ Setup complete!"
+    echo "   Agent: $AGENT_URL"
+    [ -n "$MCP_SERVER_URL" ] && echo "   MCP Server: $MCP_SERVER_URL"
+  fi
+  exit 0
+fi
+
 
 # ---- Seed database --------------------------------------------------------
 if [ -z "$POSTGRES_URL" ]; then

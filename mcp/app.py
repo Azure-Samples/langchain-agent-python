@@ -1,8 +1,11 @@
 """MCP Server for Zava Sales Analysis.
 
 Exposes 4 read-only MCP tools (current UTC time, table schemas, SQL query,
-semantic product search) over streamable HTTP. Connects to Postgres
-(via asyncpg DSN) and Azure OpenAI embeddings (Entra ID auth).
+semantic product search) over streamable HTTP. Supports two backends:
+
+* **Postgres + pgvector** — full retail dataset, ~20 min `azd up`.
+* **SQLite** — pre-baked sample (424 products), ships with the image,
+  ~5 min `azd up`. Selected when ``POSTGRES_URL`` is unset.
 """
 
 import json
@@ -11,7 +14,7 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Union
 
 import re
 from urllib.parse import quote
@@ -29,13 +32,16 @@ from fastmcp.exceptions import ToolError
 from openai import AsyncAzureOpenAI
 from pydantic import Field
 
+from sqlite_provider import SQLiteProvider
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Globals populated in lifespan. Kept module-level for compatibility with
 # FastMCP's @tool decorator pattern (handlers are module functions).
-db_provider: Optional["PostgreSQLProvider"] = None
+db_provider: Optional[Union["PostgreSQLProvider", SQLiteProvider]] = None
 embedding_provider: Optional["SemanticSearchEmbedding"] = None
+DEFAULT_SQLITE_PATH = str(Path(__file__).parent / "data" / "zava.sqlite")
 
 
 _DSN_RE = re.compile(r"^([^:]+://)([^:/@]+):([^@]+)@(.+)$")
@@ -203,12 +209,24 @@ async def lifespan(mcp_server: FastMCP):
 
     logger.info("🚀 Starting MCP server initialization...")
 
+    # Backend selection: explicit POSTGRES_URL wins; otherwise fall back to
+    # the bundled SQLite file (the "minimal" flavour shipped in the image).
     postgres_url = os.getenv("POSTGRES_URL")
+    sqlite_path = os.getenv("SQLITE_DB_PATH", DEFAULT_SQLITE_PATH)
+
     if postgres_url:
+        logger.info("Using PostgreSQL backend")
         db_provider = PostgreSQLProvider(postgres_url)
         await db_provider.connect()
+    elif Path(sqlite_path).exists():
+        logger.info("Using SQLite backend (%s)", sqlite_path)
+        db_provider = SQLiteProvider(sqlite_path)
+        await db_provider.connect()
     else:
-        logger.warning("⚠️  POSTGRES_URL not set - database tools will not work")
+        logger.warning(
+            "⚠️  Neither POSTGRES_URL nor a SQLite file at %s is available — DB tools will not work",
+            sqlite_path,
+        )
 
     openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
     embedding_deployment = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
@@ -276,7 +294,7 @@ def get_current_utc_date() -> str:
 async def get_table_schemas(ctx: Context) -> str:
     """Return JSON describing the columns of every table in the `retail` schema."""
     if not db_provider:
-        raise ToolError("Database not configured. Set POSTGRES_URL environment variable.")
+        raise ToolError("Database not configured.")
     try:
         await ctx.info("Fetching database table schemas...")
         return await db_provider.get_table_schemas()
@@ -292,7 +310,7 @@ async def execute_sales_query(
 ) -> str:
     """Execute a read-only SQL query and return the results as JSON."""
     if not db_provider:
-        raise ToolError("Database not configured. Set POSTGRES_URL environment variable.")
+        raise ToolError("Database not configured.")
 
     validate_sql_query(query)
     try:
@@ -315,10 +333,19 @@ async def semantic_search_products(
     """Find products by semantic similarity using pgvector cosine distance."""
     if not embedding_provider:
         raise ToolError("Semantic search not configured. Set AZURE_OPENAI_ENDPOINT.")
-    if not db_provider or not db_provider.pool:
-        raise ToolError("Database not connected. Set POSTGRES_URL.")
+    if not db_provider:
+        raise ToolError("Database not connected.")
 
     try:
+        if isinstance(db_provider, SQLiteProvider):
+            return await db_provider.search_products(
+                embedding_provider.client,
+                embedding_provider.embedding_deployment,
+                query, max_rows, threshold, ctx,
+            )
+        # Postgres backend
+        if not db_provider.pool:
+            raise ToolError("Database not connected.")
         return await embedding_provider.search_products(
             query, max_rows, threshold, db_provider.pool, ctx
         )
