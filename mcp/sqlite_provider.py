@@ -8,13 +8,22 @@ Postgres flavour (``retail.products``, etc.) keeps working.
 Embeddings are 1536 little-endian float32 BLOBs. Cosine similarity is
 computed in Python with NumPy at query time — fast enough at the
 sample-data scale (<1 ms for 424 products).
+
+On ``connect()`` the source database is copied to a writable temp file
+and order/customer/inventory dates are shifted forward so that the most
+recent ``orders.order_date`` is anchored to today. This keeps queries
+like "last quarter" or "this month" working even though the file
+shipped in the container image was generated in the past.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import shutil
 import struct
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -37,8 +46,11 @@ def _decode_embedding(blob: bytes) -> np.ndarray:
 class SQLiteProvider:
     """Read-only async SQLite wrapper that mirrors the PostgreSQLProvider API."""
 
-    def __init__(self, db_path: str):
-        self.db_path = str(Path(db_path).resolve())
+    def __init__(self, db_path: str, anchor_dates: bool = True):
+        self.source_path = str(Path(db_path).resolve())
+        # Runtime path; replaced by a writable copy in connect() if anchor_dates.
+        self.db_path = self.source_path
+        self.anchor_dates = anchor_dates
         self._embedding_matrix: Optional[np.ndarray] = None  # shape (N, 1536), L2-normed
         self._embedding_product_ids: Optional[np.ndarray] = None
 
@@ -49,14 +61,67 @@ class SQLiteProvider:
         uri = f"file:{self.db_path}?mode=ro"
         conn = await aiosqlite.connect(uri, uri=True)
         conn.row_factory = aiosqlite.Row
-        # Attach the same file under the alias "retail"; SQLite is happy to
-        # have the same DB attached under multiple names.
         await conn.execute(f"ATTACH DATABASE 'file:{self.db_path}?mode=ro' AS retail")
         return conn
 
+    async def _shift_dates_to_now(self) -> None:
+        """Shift order/customer/inventory dates so max(order_date) ≈ today.
+
+        The committed SQLite file was generated against a fixed wall clock,
+        so over time its newest order drifts into the past. Shifting once
+        at startup preserves the relative spacing between rows while making
+        relative-time queries (e.g. "last quarter") naturally return data.
+        """
+        # Open read-write directly on the runtime copy.
+        conn = await aiosqlite.connect(self.db_path)
+        try:
+            cur = await conn.execute("SELECT MAX(order_date) FROM orders")
+            row = await cur.fetchone()
+            if not row or not row[0]:
+                return
+            try:
+                # Stored as ISO 8601 without tz; compare in naive UTC.
+                max_dt = datetime.fromisoformat(row[0])
+            except ValueError:
+                logger.warning("Could not parse max order_date %r — skipping shift", row[0])
+                return
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            delta_days = (now - max_dt).days
+            if delta_days <= 0:
+                logger.info("Order dates already current (delta=%dd) — no shift", delta_days)
+                return
+
+            modifier = f"+{delta_days} days"
+            await conn.execute(
+                "UPDATE orders SET order_date = datetime(order_date, ?)", (modifier,)
+            )
+            await conn.execute(
+                "UPDATE customers SET created_at = datetime(created_at, ?)", (modifier,)
+            )
+            await conn.execute(
+                "UPDATE inventory SET last_updated = datetime(last_updated, ?)", (modifier,)
+            )
+            await conn.commit()
+            logger.info(
+                "📅 Shifted orders/customers/inventory forward by %d days "
+                "(anchor max(order_date) → ~today)",
+                delta_days,
+            )
+        finally:
+            await conn.close()
+
     async def connect(self) -> None:
-        if not Path(self.db_path).exists():
-            raise FileNotFoundError(f"SQLite database not found at {self.db_path}")
+        if not Path(self.source_path).exists():
+            raise FileNotFoundError(f"SQLite database not found at {self.source_path}")
+
+        if self.anchor_dates:
+            # Copy to a writable temp path so we can run the date shift.
+            # The container image's /app is read-only at runtime in Container Apps,
+            # but /tmp is always writable.
+            tmp = Path(tempfile.gettempdir()) / "zava-runtime.sqlite"
+            shutil.copy2(self.source_path, tmp)
+            self.db_path = str(tmp)
+            await self._shift_dates_to_now()
 
         # Pre-load embeddings into memory once so semantic search is ~free.
         conn = await self._open()

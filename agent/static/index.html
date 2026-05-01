@@ -248,6 +248,34 @@
             border: 1px solid #fcc;
         }
 
+        .suggestion-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .suggestion-chip {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 999px;
+            padding: 8px 14px;
+            font-size: 13px;
+            color: #374151;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, transform 0.1s;
+        }
+
+        .suggestion-chip:hover {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            color: #fff;
+        }
+
+        .suggestion-chip:active {
+            transform: scale(0.97);
+        }
+
         .chat-input-container {
             padding: 20px;
             background: white;
@@ -405,8 +433,15 @@
                 <div class="message assistant">
                     <div class="message-bubble">
                         <p>👋 Welcome to Zava Sales Analyst! I can help you explore sales data, search our DIY product
-                            catalog, and analyze performance across our Washington stores. What would you like to know?
+                            catalog, and analyze performance across our Washington stores. Try one of these to get
+                            started:
                         </p>
+                        <div class="suggestion-chips" data-suggestion-chips>
+                            <button type="button" class="suggestion-chip" data-prompt="What was last quarter's revenue?">What was last quarter's revenue?</button>
+                            <button type="button" class="suggestion-chip" data-prompt="Show me the top 5 products by revenue this year as a bar chart">Top 5 products this year</button>
+                            <button type="button" class="suggestion-chip" data-prompt="Find me 3 hammers">Find me 3 hammers</button>
+                            <button type="button" class="suggestion-chip" data-prompt="Show sales by store as a pie chart">Sales by store (pie chart)</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -650,6 +685,14 @@
             }
         });
 
+        // Delegated handler for the welcome screen's suggestion chips.
+        chatMessages.addEventListener('click', async (e) => {
+            const chip = e.target.closest('.suggestion-chip');
+            if (!chip) return;
+            const prompt = chip.dataset.prompt;
+            if (prompt) await sendMessage(prompt);
+        });
+
         // Chat session management
         let currentChatId = null;
         let allChats = {};
@@ -798,7 +841,13 @@
             welcomeDiv.className = 'message assistant';
             const bubbleDiv = document.createElement('div');
             bubbleDiv.className = 'message-bubble';
-            bubbleDiv.innerHTML = '<p>👋 Welcome to Zava Sales Analyst! I can help you explore sales data, search our DIY product catalog, and analyze performance across our Washington stores. What would you like to know?</p>';
+            bubbleDiv.innerHTML = '<p>👋 Welcome to Zava Sales Analyst! I can help you explore sales data, search our DIY product catalog, and analyze performance across our Washington stores. Try one of these to get started:</p>'
+                + '<div class="suggestion-chips" data-suggestion-chips>'
+                + '<button type="button" class="suggestion-chip" data-prompt="What was last quarter\'s revenue?">What was last quarter\'s revenue?</button>'
+                + '<button type="button" class="suggestion-chip" data-prompt="Show me the top 5 products by revenue this year as a bar chart">Top 5 products this year</button>'
+                + '<button type="button" class="suggestion-chip" data-prompt="Find me 3 hammers">Find me 3 hammers</button>'
+                + '<button type="button" class="suggestion-chip" data-prompt="Show sales by store as a pie chart">Sales by store (pie chart)</button>'
+                + '</div>';
             welcomeDiv.appendChild(bubbleDiv);
             messagesDiv.appendChild(welcomeDiv);
         }
