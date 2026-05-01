@@ -31,4 +31,7 @@ hooks:
     shell: sh
     run: ./infra/hooks/postprovision.sh
     interactive: true
-    continueOnError: false
+    # Database seeding is idempotent and not required for infra to be valid.
+    # If seeding fails (e.g. local pip/firewall issue), provisioning still succeeds
+    # and the user can re-run `azd hooks run postprovision` after fixing the issue.
+    continueOnError: true
