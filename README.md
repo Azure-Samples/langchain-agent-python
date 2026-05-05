@@ -9,351 +9,302 @@ products:
   - langchain
 urlFragment: langchain-agent-mcp
 name: LangChain Python Agent with Model Context Protocol (MCP)
-description: A production-ready LangChain agent in Python using Azure OpenAI Responses API with MCP server integration, deployed on Azure Container Apps
+description: A LangChain agent in Python that uses the Azure OpenAI Responses API and Model Context Protocol, deployed to Azure Container Apps with one command.
 ---
 
 <!-- YAML front-matter schema: https://review.learn.microsoft.com/en-us/help/contribute/samples/process/onboarding?branch=main#supported-metadata-fields-for-readmemd -->
 
 # LangChain Agent with Model Context Protocol (MCP)
 
+A two-service Python sample that shows how to wire a [LangChain](https://python.langchain.com/) agent to a [Model Context Protocol](https://modelcontextprotocol.io/) server, run them on [Azure Container Apps](https://learn.microsoft.com/azure/container-apps/), and back them with [Azure OpenAI](https://learn.microsoft.com/azure/ai-services/openai/) and Postgres + [pgvector](https://github.com/pgvector/pgvector). Use it as a reference for building your own agent + tool-server architecture on Azure.
+
 ![LangChain MCP Agent](images/app-image.png)
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/langchain-agent-python)
 
-This sample demonstrates a **production-ready LangChain agent** that uses the **OpenAI Responses API** with **Model Context Protocol (MCP)** for tool integration. The agent uses **Azure OpenAI GPT-5-mini** with **Entra ID authentication**, **PostgreSQL with pgvector** for semantic search, and is deployed as microservices on **Azure Container Apps**.
+## What you'll learn
 
-This is a simplified, Python version inspired by the [Microsoft AI Tour WRK540 workshop](https://github.com/microsoft/aitour26-WRK540-unlock-your-agents-potential-with-model-context-protocol), but uses the same product data and instructions.
-
-## Features
-
-**LangChain with Responses API** - Uses OpenAI's latest Responses API for native MCP tool support  
-**Azure OpenAI GPT-5-mini** - Latest reasoning model deployed via Azure  
-**PostgreSQL with pgvector** - Semantic search over product catalog using vector embeddings  
-**Entra ID Authentication** - Keyless authentication using Managed Identity (no API keys)  
-**MCP Server** - FastMCP server with database and semantic search tools  
-**Microservices Architecture** - Agent and MCP server deployed as independent container apps  
-**Infrastructure as Code** - Complete Bicep templates with Azure best practices  
-**One-command Deployment** - Deploy everything with `azd up`
+- How to call the **Azure OpenAI Responses API** from LangChain, including hosted server-side tools (`code_interpreter`, `web_search_preview`).
+- How to expose database operations as **MCP tools** with FastMCP and connect them to the agent over streamable HTTP.
+- How to use **Entra ID (Managed Identity)** for keyless auth to Azure OpenAI and Postgres.
+- How to provision the whole stack — Container Apps, Azure OpenAI, Postgres Flexible Server, monitoring — with **`azd up`**.
 
 ## Architecture
 
-```markdown
+Two services, deployed independently as Container Apps:
+
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        Azure Cloud                          │
-│                                                             │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │         Azure Container Apps Environment             │   │
 │  │                                                      │   │
-│  │  ┌─────────────────┐       ┌──────────────────┐      │   │
-│  │  │  Agent Container │──────│  MCP Server      │      │   │
-│  │  │  - LangChain     │ HTTP │  - PostgreSQL    │      │   │
-│  │  │  - Responses API │◄─────│  - Semantic      │      │   │
-│  │  │                  │      │    Search        │      │   │
-│  │  └─────────┬────────┘      └────────┬─────────┘      │   │
-│  │            │                         │               │   │
+│  │   ┌─────────────────┐       ┌──────────────────┐     │   │
+│  │   │ agent           │──HTTP─│ mcp-server       │     │   │
+│  │   │  LangChain +    │       │  FastMCP +       │     │   │
+│  │   │  Responses API  │◄──────│  Postgres tools  │     │   │
+│  │   └────────┬────────┘       └─────────┬────────┘     │   │
 │  └────────────┼─────────────────────────┼───────────────┘   │
-│               │ Entra ID                │                   │
-│               ▼                         ▼                   │
-│  ┌─────────────────────────┐  ┌──────────────────────┐      │
-│  │   Azure OpenAI          │  │  PostgreSQL          │      │
-│  │   - GPT-5-mini          │  │  - pgvector          │      │
-│  │   - text-embedding-     │  │  - Zava database     │      │
-│  │     3-small             │  │                      │      │
-│  └─────────────────────────┘  └──────────────────────┘      │
+│               │  Entra ID                │                  │
+│               ▼                          ▼                  │
+│   ┌────────────────────────┐  ┌──────────────────────┐      │
+│   │ Azure OpenAI           │  │ Postgres Flexible    │      │
+│   │  gpt-5-mini            │  │  Server + pgvector   │      │
+│   │  text-embedding-       │  │  Zava retail schema  │      │
+│   │   ada-002              │  │  (~424 products)     │      │
+│   └────────────────────────┘  └──────────────────────┘      │
 └─────────────────────────────────────────────────────────────┘
-
-Local Development:
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│ agent.py     │─HTTP─│ MCP Server   │      │ Azure OpenAI │
-│ (localhost)  │◄─────│ (localhost:  │─────▶│ (cloud)      │
-│              │      │  8000)       │ Entra│              │
-└──────────────┘      └──────────────┘  ID  └──────────────┘
 ```
+
+The agent is the only public-facing service. The MCP server is reachable only from inside the Container Apps environment.
 
 ## Prerequisites
 
-### Cloud Deployment
+- An Azure subscription. [Create one for free](https://azure.microsoft.com/free/).
+- [Azure Developer CLI (`azd`)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd).
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
+- Python 3.11+ (only required for local development).
+- Docker (only required for the full local stack).
 
-- **Azure Subscription** - [Create one for free](https://azure.microsoft.com/free/)
-- **Azure Developer CLI (azd)** - [Install azd](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd)
-- **Azure CLI** - [Install Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+The fastest path is to open the repo in **GitHub Codespaces** — every tool above is preinstalled.
 
-### Local Development
+## Quick start
 
-- **Python 3.11+** - [Download Python](https://www.python.org/downloads/)
-- **Docker Desktop** - [Install Docker](https://www.docker.com/products/docker-desktop)
-
-### Quick Start (Recommended)
-
-- **GitHub Codespaces** - Click the badge above to start in a pre-configured environment with all tools installed!
-
-## Quick Start
-
-### Deploy to Azure (5 minutes)
+Deploy the whole stack to Azure with one command:
 
 ```bash
-# 1. Login to Azure
 az login
 azd auth login
-
-# 2. Deploy everything
 azd up
 ```
 
-That's it! The `azd up` command will:
+`azd up` provisions Azure OpenAI (with `gpt-5-mini` and `text-embedding-ada-002`), a Postgres Flexible Server with pgvector, a Container Apps environment, and the two container images. After the build finishes a postprovision hook seeds the database with the Zava DIY catalogue (~424 products with pre-computed embeddings).
 
-- Provision Azure OpenAI with GPT-5-mini
-- Create Container Apps environment
-- Build and deploy both the agent and MCP server containers
-- Configure networking and managed identity
-- Set up monitoring with Application Insights
+When it finishes you'll see something like:
 
-After deployment completes, you'll see output like:
+```text
+🚀 Your LangChain Agent is Ready!
 
-```
-SUCCESS: Your application was provisioned and deployed to Azure!
-
-Endpoints:
-  - MCP Server: https://ca-mcp-abc123.region.azurecontainerapps.io
-  - Agent: https://ca-agent-abc123.region.azurecontainerapps.io
+🌐 Web chat:   https://ca-agent-<id>.<region>.azurecontainerapps.io/
+   Health:     https://ca-agent-<id>.<region>.azurecontainerapps.io/api/health
+   MCP Server: https://ca-mcp-<id>.<region>.azurecontainerapps.io/mcp
 ```
 
-### Local Development
+Open the web chat URL and try:
 
-**Option 1: Use Azure Database (Recommended)**
+- *What tables are in the database?*
+- *Find me 3 hammers.*
+- *Show sales by store as a pie chart.*
+
+To remove every resource later, run `azd down`.
+
+## Repository layout
+
+```text
+.
+├── agent/              # Public-facing chat service (LangChain + Responses API)
+│   ├── app.py          #   Starlette app, lifespan, streaming /api/chat
+│   ├── streaming.py    #   Pure parser for normalising LangChain stream chunks
+│   ├── instructions.txt #  System prompt for the agent
+│   └── static/         #   Single-page chat UI
+├── mcp/                # Internal tool server (FastMCP)
+│   └── app.py          #   4 MCP tools over Postgres + pgvector
+├── data/               # Pre-generated catalogue + seed scripts
+├── infra/              # Bicep templates and parameters used by `azd up`
+└── azure.yaml          # azd service definitions and hooks
+```
+
+## How it works
+
+### 1. The agent — LangChain on the Responses API
+
+`agent/app.py` builds the agent at startup inside a Starlette `lifespan` hook so the MCP connection and OpenAI credentials are reused across requests:
+
+```python
+mcp_tools = await MultiServerMCPClient(
+    {"zava-sales": {"url": MCP_SERVER_URL, "transport": "streamable_http"}}
+).get_tools()
+
+server_tools = [
+    {"type": "web_search_preview"},
+    {"type": "code_interpreter", "container": {"type": "auto"}},
+]
+
+model = ChatOpenAI(
+    model=OPENAI_DEPLOYMENT,
+    base_url=OPENAI_ENDPOINT,
+    api_key=token_provider,            # Entra ID — no API key
+    use_responses_api=True,
+    include=["code_interpreter_call.outputs"],
+)
+
+agent = create_agent(model=model, tools=server_tools + mcp_tools, system_prompt=SYSTEM_PROMPT)
+```
+
+A few things worth noting:
+
+- `use_responses_api=True` opts into OpenAI's Responses API, which lets the model call **hosted** tools like `code_interpreter` and `web_search_preview` directly — no extra Python runtime needed for chart generation.
+- `include=["code_interpreter_call.outputs"]` asks the API to stream the tool outputs (including any generated images) back inline.
+- `api_key=token_provider` is a callable that returns a fresh Entra ID bearer token. There are no API keys anywhere in the stack.
+
+### 2. The MCP server — FastMCP over streamable HTTP
+
+`mcp/app.py` uses [FastMCP](https://github.com/jlowin/fastmcp) to expose four read-only tools to the agent:
+
+| Tool | Purpose |
+|------|---------|
+| `get_current_utc_date` | Returns the current UTC time so the agent can interpret words like *"last quarter"* against a known anchor. |
+| `get_table_schemas` | Returns the column definitions for every table in the `retail` schema. The agent reads this once before composing SQL. |
+| `execute_sales_query` | Runs a parameterised read-only SQL query against Postgres. |
+| `semantic_search_products` | Embeds the user's natural-language description with `text-embedding-ada-002` and runs a pgvector similarity search. |
+
+Tools are decorated with FastMCP annotations that tell the model what to expect:
+
+```python
+mcp = FastMCP("Zava Sales Analysis Tools", lifespan=lifespan)
+
+@mcp.tool(annotations={"title": "Semantic Product Search", "readOnlyHint": True})
+async def semantic_search_products(
+    query_description: Annotated[str, Field(description="Natural-language description of the product")],
+    threshold: float = 0.5,
+    max_rows: int = 10,
+) -> list[dict]:
+    ...
+```
+
+The agent talks to this server over the `streamable_http` MCP transport — no shared library, just HTTP. That's what makes it easy to swap the MCP server out for one written in any other language.
+
+### 3. Authentication — Entra ID end to end
+
+Every cross-service hop uses Managed Identity:
+
+- The agent's container has a user-assigned identity granted **Cognitive Services User** on the Azure OpenAI account.
+- The MCP server's container uses the same identity to authenticate to **Azure Database for PostgreSQL** and to **Azure OpenAI** (for embedding queries).
+- There are no client secrets, connection strings with passwords, or API keys committed to the repo or stored in Container Apps env vars.
+
+### 4. Infrastructure — Bicep + `azd`
+
+`infra/main.bicep` provisions everything in a single deployment:
+
+- Azure OpenAI account with two model deployments (chat + embeddings).
+- Postgres Flexible Server with `pgvector` enabled and Entra ID auth on.
+- Container Apps environment plus two Container Apps (`agent` and `mcp-server`).
+- Log Analytics workspace and Application Insights for observability.
+
+`azure.yaml` declares the two services, points them at their Dockerfiles, and registers a `postprovision` hook that creates the `retail` schema, loads the seed JSON files, and regenerates embeddings against whatever embedding model was actually deployed.
+
+## Local development
+
+You have two options. Both assume you've run `azd up` at least once so Azure OpenAI exists.
+
+### Option 1 — Cloud Postgres, local services (recommended)
 
 ```bash
-# 1. Deploy to Azure first
-azd up
-
-# 2. Get configuration and set MCP server URL
+# Pull the deployed environment values
 azd env get-values > .env.local
 echo "MCP_SERVER_URL=http://localhost:8000" >> .env.local
 
-# 3. Start MCP server (Terminal 1)
-cd mcp
-source ../.env.local
-python app.py
+# Terminal 1 — MCP server
+cd mcp && source ../.env.local && python app.py
 
-# 4. Start agent server (Terminal 2)
-cd agent
-source ../.env.local
-PORT=8001 python app.py
+# Terminal 2 — agent
+cd agent && source ../.env.local && PORT=8001 python app.py
 
-# 5. Open browser to http://localhost:8001
+# Open http://localhost:8001
 ```
 
-**Option 2: Full Local Stack**
+This runs both Python services on your machine but uses the cloud Postgres and Azure OpenAI deployments.
+
+### Option 2 — Full local stack
 
 ```bash
-# 1. Start PostgreSQL with pgvector
-docker-compose up -d
-
-# 2. Configure environment
-cp .env.example .env.local
-# Edit .env.local with your Azure OpenAI credentials
-
-# 3. Initialize database
-cd data
-source ../.env.local
-python generate_database.py
-
-# 4. Regenerate embeddings (required if your Azure OpenAI uses a different embedding model)
-python regenerate_embeddings.py
-
-# 5. Start MCP server (Terminal 1)
-cd mcp
-source ../.env.local
-python app.py
-
-# 6. Start agent server (Terminal 2)
-cd agent
-source ../.env.local
-PORT=8001 python app.py
-
-# 7. Open browser to http://localhost:8001
+docker compose up -d                         # local Postgres + pgvector
+cp .env.example .env.local                   # add your Azure OpenAI endpoint
+cd data && source ../.env.local && \
+  python generate_database.py && \
+  python regenerate_embeddings.py            # match embeddings to your deployment
+# Then start mcp/ and agent/ as in Option 1
 ```
 
-**VS Code Tasks:**
+VS Code tasks (`Cmd/Ctrl+Shift+P` → *Tasks: Run Task*) are pre-configured for **Start MCP Server**, **Start Agent**, **Start PostgreSQL (Docker)**, and **Initialize Database**.
 
-The project includes pre-configured VS Code tasks. Press `Cmd+Shift+P` (Mac) or `Ctrl+Shift+P` (Windows/Linux) and select "Tasks: Run Task" to see available tasks:
-- Start MCP Server
-- Start Agent
-- Start PostgreSQL (Docker)
-- Initialize Database
+## Customise it
 
-**Ports:**
+### Add a new MCP tool
 
-- MCP Server: `8000`
-- Agent/Chat UI: `8001` (set via `PORT` environment variable)
-
-## How It Works
-
-### 1. **Agent (LangChain + Responses API)**
-
-The agent uses LangChain's `ChatOpenAI` with the new **Responses API** for native MCP tool support:
+Add a function to `mcp/app.py` and decorate it. The agent will pick it up on the next start:
 
 ```python
-from langchain_openai import ChatOpenAI
-
-llm = ChatOpenAI(
-    model="gpt-5-mini",
-    base_url=f"{endpoint}/openai/v1/",
-    api_key=token_provider,
-    model_kwargs={"use_responses_api": True}
-)
-
-# Bind MCP tools from server
-mcp_tools = get_mcp_tools(mcp_server_url)
-llm = llm.bind_tools(mcp_tools)
+@mcp.tool(annotations={"title": "Top Categories", "readOnlyHint": True})
+async def top_categories(limit: int = 5) -> list[dict]:
+    """Return the top-selling product categories."""
+    rows = await db_provider.fetch(
+        "SELECT category, SUM(line_total) AS sales "
+        "FROM retail.order_items GROUP BY category "
+        "ORDER BY sales DESC LIMIT $1", limit,
+    )
+    return [dict(r) for r in rows]
 ```
 
-### 2. **MCP Server (FastMCP)**
-
-The MCP server exposes tools via FastMCP:
-
-```python
-from fastmcp import FastMCP
-
-mcp = FastMCP("Data Analysis Tools")
-
-@mcp.tool()
-def execute_query(query: str) -> dict:
-    """Execute SQL query on database."""
-    # ... implementation
-```
-
-### 3. **Environment-based Configuration**
-
-Both services use environment-aware configuration:
-
-- **Local**: Uses `.env.local` file, connects to `localhost:8000` for MCP
-- **Production**: Uses environment variables from Container Apps, connects via HTTPS to cloud MCP server
-
-### 4. **Secure Authentication**
-
-- **Azure OpenAI**: Uses Managed Identity (Entra ID) - no API keys
-- **MCP Server**: Internal Container Apps networking
-- **Monitoring**: Application Insights for observability
-
-## Available MCP Tools
-
-The MCP server provides these tools to the agent:
-
-1. **`get_current_utc_date()`** - Returns current UTC timestamp for time-sensitive queries
-2. **`get_table_schemas()`** - Returns PostgreSQL database schema information
-3. **`execute_sales_query(query: str)`** - Executes SQL queries on PostgreSQL database
-4. **`semantic_search_products(query_description: str)`** - Semantic product search using pgvector
-
-## Database
-
-The sample uses **Azure PostgreSQL Flexible Server** with **pgvector** for semantic product search.
-
-**Key Features:**
-
-- 10-table retail schema (products, orders, customers, inventory, etc.)
-- Vector embeddings for semantic search using Azure OpenAI
-- Pre-populated Zava DIY product catalog with ~424 products
-- Natural language queries like "waterproof outdoor electrical boxes"
-
-**Data Files Included:**
-
-This repository includes pre-generated data files in the `data/` folder, so you don't need to download anything:
-- `products_pregenerated.json` - 424 products with pre-computed embeddings
-- `customers_pregenerated.json` - 500 sample customers
-- `orders_pregenerated.json` - 2000 sample orders
-
-**Setup:**
-
-- Production: Automatically provisioned during `azd up`
-- Local: Run `docker-compose up -d` then `python data/generate_database.py`
-
-## Customization
-
-### Add New MCP Tools
-
-Edit `mcp/mcp_server.py`:
-
-```python
-@mcp.tool()
-def my_custom_tool(param: str) -> dict:
-    """Description of what this tool does."""
-    # Your implementation
-    return {"result": "data"}
-```
-
-The tool is automatically exposed via the `/tools` endpoint in OpenAI function format.
-
-### Change the Model
+### Change the model
 
 Edit `infra/main.parameters.json`:
 
 ```json
-{
-  "openAiModelName": {
-    "value": "gpt-5-mini" // Change to gpt-4o, etc.
-  }
-}
+{ "openAiModelName": { "value": "gpt-5-mini" } }
 ```
 
-### Modify System Instructions
+Use a model that supports the Responses API. Note that not every model supports every hosted tool — check the [Azure OpenAI model matrix](https://learn.microsoft.com/azure/ai-services/openai/concepts/models).
 
-Edit `agent/instructions.txt` to change the agent's behavior and personality.
+### Adjust agent behaviour
+
+`agent/instructions.txt` is the system prompt. It controls tone, when to call which tool, default assumptions about timeframes, chart preferences, and so on. Edit it and redeploy with `azd deploy agent`.
 
 ## Monitoring
 
-View logs and metrics in Azure Portal:
-
 ```bash
-# Open Application Insights
-azd monitor
-
-# View container logs
-az containerapp logs show --name <agent-name> --resource-group <rg-name> --follow
+azd monitor                                                                  # opens Application Insights
+az containerapp logs show -n <agent-name> -g <rg-name> --follow              # tail logs
 ```
+
+Application Insights captures every request to `/api/chat`, every MCP tool call, and every Azure OpenAI request, with end-to-end traces.
 
 ## Troubleshooting
 
-**"Deployment quota exceeded"**  
-→ Try a different region: `azd env set AZURE_LOCATION eastus2`
+| Symptom | Fix |
+|---------|-----|
+| `Deployment quota exceeded` | Set a different region: `azd env set AZURE_LOCATION eastus2` then re-run `azd up`. |
+| `Authentication failed` | Re-login with `az login && azd auth login`. |
+| `gpt-5-mini` not available in region | Try `eastus2`, `westus`, or `swedencentral`. Verify in the [Azure OpenAI model matrix](https://learn.microsoft.com/azure/ai-services/openai/concepts/models). |
+| Container Apps not starting | `azd monitor` and inspect the *Revision* logs in the portal, or `az containerapp logs show`. |
+| Agent loads no tools (`mcp_tool_count: 0`) | Check that `MCP_SERVER_URL` points at `https://<mcp-fqdn>/mcp` and that the MCP container is `Running`. |
+| Semantic search returns nothing | The seed embeddings must be generated by the same model deployed in your Azure OpenAI account. Re-run `azd hooks run postprovision`. |
 
-**"Authentication failed"**  
-→ Ensure you're logged in: `az login && azd auth login`
-
-**"GPT-5-mini not available"**  
-→ Model may not be available in your region - try eastus or westus
-
-**"Container apps failing to start"**  
-→ Check logs: `azd monitor`
-
-**"MCP tools not loading"**  
-→ Ensure MCP_SERVER_URL is accessible from the agent
-
-## Clean Up
-
-Remove all Azure resources:
+## Clean up
 
 ```bash
 azd down
 ```
 
+This deletes the resource group and every resource provisioned by `azd up`.
+
 ## Resources
 
-- [Azure OpenAI Documentation](https://learn.microsoft.com/azure/ai-services/openai/)
-- [LangChain Documentation](https://python.langchain.com/)
-- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)
-- [FastMCP Framework](https://github.com/jlowin/fastmcp)
-- [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/)
-- [Original Workshop (WRK540)](https://github.com/microsoft/aitour26-WRK540-unlock-your-agents-potential-with-model-context-protocol)
+- [Azure OpenAI Responses API](https://learn.microsoft.com/azure/ai-services/openai/how-to/responses)
+- [LangChain](https://python.langchain.com/) and [`langchain-mcp-adapters`](https://github.com/langchain-ai/langchain-mcp-adapters)
+- [Model Context Protocol](https://modelcontextprotocol.io/) and [FastMCP](https://github.com/jlowin/fastmcp)
+- [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/)
+- [pgvector](https://github.com/pgvector/pgvector)
+- This sample is inspired by the [Microsoft AI Tour WRK540 workshop](https://github.com/microsoft/aitour26-WRK540-unlock-your-agents-potential-with-model-context-protocol) and reuses its product catalogue.
 
 ## Contributing
 
-This project welcomes contributions and suggestions. Most contributions require you to agree to a Contributor License Agreement (CLA). For details, visit https://cla.opensource.microsoft.com.
+This project welcomes contributions. Most contributions require you to agree to a Contributor License Agreement; see [https://cla.opensource.microsoft.com](https://cla.opensource.microsoft.com).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).
 
 ---
 
-**Questions or feedback?** Open an issue on [GitHub](https://github.com/Azure-Samples/langchain-agent-python/issues) or see [SUPPORT.md](SUPPORT.md).
+Questions? Open an issue on [GitHub](https://github.com/Azure-Samples/langchain-agent-python/issues) or read [SUPPORT.md](SUPPORT.md).
