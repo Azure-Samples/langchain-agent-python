@@ -14,11 +14,13 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system -r requirements.txt
 
-COPY *.py .
-COPY *.txt .
+# Package layout:
+#   /app/app/         (the Python package: agent.py, main.py, middleware/, tools/, prompts/)
+#   /app/static/      (chat UI)
+COPY app/ ./app/
 COPY static/ ./static/
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
