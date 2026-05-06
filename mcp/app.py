@@ -35,6 +35,15 @@ from dotenv import load_dotenv
 # Load environment variables from .env.local (for local development)
 load_dotenv(Path(__file__).parent.parent / ".env.local")
 
+# Wire Azure Monitor OpenTelemetry only when deployed (env var is set by infra).
+if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
+    try:
+        from azure.monitor.opentelemetry import configure_azure_monitor
+
+        configure_azure_monitor(logger_name=__name__)
+    except Exception as exc:  # pragma: no cover — best-effort
+        logging.getLogger(__name__).warning("App Insights setup failed: %s", exc)
+
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError

@@ -23,6 +23,16 @@ from dotenv import load_dotenv
 # Load .env.local before importing modules that read env at import time.
 load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env.local")
 
+# Wire Azure Monitor OpenTelemetry (only when APPLICATIONINSIGHTS_CONNECTION_STRING
+# is set — i.e. in deployed environments). No-op locally.
+if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
+    try:
+        from azure.monitor.opentelemetry import configure_azure_monitor
+
+        configure_azure_monitor(logger_name="app")
+    except Exception as exc:  # pragma: no cover — best-effort
+        logging.getLogger(__name__).warning("App Insights setup failed: %s", exc)
+
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from starlette.applications import Starlette
 from starlette.responses import FileResponse, JSONResponse, StreamingResponse
