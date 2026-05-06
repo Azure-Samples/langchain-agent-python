@@ -76,8 +76,23 @@ else
 
   echo "   Running data/generate_database.py..."
   POSTGRES_URL="$POSTGRES_URL" python data/generate_database.py && \
-    echo "✅ Database populated successfully!" || \
-    echo "⚠️  Seeding failed. Fix the issue and re-run: azd hooks run postprovision"
+    echo "✅ Core database populated successfully!" || \
+    echo "⚠️  Core seeding failed. Fix the issue and re-run: azd hooks run postprovision"
+
+  echo "   Running data/generate_sales_kb.py (sales KB / case studies / pricing)..."
+  # generate_sales_kb.py needs azure-identity + openai for embedding generation.
+  if ! python -c "import azure.identity, openai, dotenv" 2>/dev/null; then
+    echo "   Installing azure-identity + openai + python-dotenv..."
+    python -m pip install --quiet --disable-pip-version-check azure-identity openai python-dotenv || true
+  fi
+  AZURE_OPENAI_ENDPOINT_VAL=$(printf '%s' "$ENV_VALUES" | jq -r '.AZURE_OPENAI_ENDPOINT // empty')
+  AZURE_OPENAI_EMBEDDING_DEPLOYMENT_VAL=$(printf '%s' "$ENV_VALUES" | jq -r '.AZURE_OPENAI_EMBEDDING_DEPLOYMENT // empty')
+  POSTGRES_URL="$POSTGRES_URL" \
+    AZURE_OPENAI_ENDPOINT="$AZURE_OPENAI_ENDPOINT_VAL" \
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT="$AZURE_OPENAI_EMBEDDING_DEPLOYMENT_VAL" \
+    python data/generate_sales_kb.py && \
+      echo "✅ Sales KB / case studies / pricing seeded!" || \
+      echo "⚠️  Sales-KB seeding failed. Fix and re-run: azd hooks run postprovision"
 
   deactivate || true
 fi
