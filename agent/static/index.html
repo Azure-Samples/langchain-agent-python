@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <style>
   :root {
     --lc-blue: #1F4FFF;
@@ -91,6 +93,34 @@
   }
   .bubble.user { align-self: flex-end; background: var(--bubble-user); border: 1px solid rgba(255,255,255,0.25); color: white; }
   .bubble.assistant { align-self: flex-start; background: var(--frost); border: 1px solid var(--frost-stroke); }
+  .bubble.assistant .text { white-space: normal; }
+  .bubble.assistant .text > *:first-child { margin-top: 0; }
+  .bubble.assistant .text > *:last-child { margin-bottom: 0; }
+  .bubble.assistant .text p { margin: 0 0 8px 0; }
+  .bubble.assistant .text ul, .bubble.assistant .text ol { margin: 4px 0 8px 0; padding-left: 22px; }
+  .bubble.assistant .text li { margin: 2px 0; }
+  .bubble.assistant .text strong { color: #fff; }
+  .bubble.assistant .text code {
+    background: rgba(0,0,0,0.35); padding: 1px 6px; border-radius: 5px;
+    font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px;
+  }
+  .bubble.assistant .text a { color: var(--accent); }
+
+  .activity {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 8px; padding: 6px 12px;
+    background: rgba(31,79,255,0.12); border: 1px solid rgba(77,114,255,0.3); border-radius: 999px;
+    font-size: 12px; color: var(--text-dim);
+  }
+  .activity .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--lc-blue-glow);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.85); }
+    50%      { opacity: 1;    transform: scale(1.15); }
+  }
 
   .citation-row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
   .citation {
@@ -259,6 +289,37 @@
     handoff_to_ae: "handoff to AE",
   };
 
+  const TOOL_LABELS = {
+    set_intent: "Routing…",
+    lookup_lead_by_email: "Looking up your account…",
+    update_lead_profile: "Saving your details…",
+    advance_to_step: "Moving along the funnel…",
+    log_objection: "Noting your concern…",
+    propose_meeting_times: "Drafting meeting times…",
+    create_handoff_summary: "Preparing AE handoff…",
+    log_activity: "Logging activity…",
+    escalate_to_ae: "Bringing in an account exec…",
+    semantic_search_products: "Searching the Zava catalog…",
+    get_product_details: "Looking up product details…",
+    search_case_studies: "Pulling up customer stories…",
+    search_kb_articles: "Reading the Zava knowledge base…",
+    get_pricing: "Fetching plan pricing…",
+    compare_plans: "Comparing plans…",
+    get_table_schemas: "Inspecting database schema…",
+    execute_sales_query: "Running a database query…",
+    get_current_utc_date: "Checking the date…",
+  };
+
+  function toolLabel(name) {
+    return TOOL_LABELS[name] || `Calling ${name}…`;
+  }
+
+  function renderMarkdown(text) {
+    if (!window.marked || !window.DOMPurify) return text;
+    const raw = window.marked.parse(text, { breaks: true, gfm: true });
+    return window.DOMPurify.sanitize(raw);
+  }
+
   let history = [];
   let threadId = null;
   let debugCount = 0;
@@ -340,6 +401,22 @@
     b.textContent = text;
   }
 
+  function showWelcome() {
+    const bubble = addBubble("assistant");
+    const textNode = bubble.querySelector(".text");
+    const md = `👋 **Welcome to Zava** — your DIY supplies partner for Washington-state pros and homeowners.
+
+I'm Zava's sales concierge. I can help you:
+
+- **Compare plans & pricing** (Starter, Pro, Enterprise)
+- **See customer stories** from teams like yours
+- **Answer questions** about bulk pricing, same-day delivery, and onboarding
+- **Book a call** with an account exec when you're ready
+
+What brings you to Zava today?`;
+    textNode.innerHTML = renderMarkdown(md);
+  }
+
   async function send(text) {
     if (!text.trim()) return;
     firstSuggestions.style.display = "none";
@@ -353,6 +430,26 @@
     const textNode = bubble.querySelector(".text");
     let citationsRow = null;
     const seenCitations = new Set();
+    let activityChip = null;
+
+    function setActivity(label) {
+      if (!activityChip) {
+        activityChip = el("div", "activity");
+        activityChip.appendChild(el("span", "dot"));
+        activityChip.appendChild(el("span", "label"));
+        bubble.appendChild(activityChip);
+      }
+      activityChip.querySelector(".label").textContent = label;
+      thread.scrollTop = thread.scrollHeight;
+    }
+    function clearActivity() {
+      if (activityChip) {
+        activityChip.remove();
+        activityChip = null;
+      }
+    }
+
+    setActivity("Thinking…");
 
     let assistantText = "";
 
@@ -392,9 +489,11 @@
           }
           if (ev.chunk) {
             assistantText += ev.chunk;
-            textNode.textContent = assistantText;
+            clearActivity();
+            textNode.innerHTML = renderMarkdown(assistantText);
           }
           if (ev.tool) {
+            setActivity(toolLabel(ev.tool.name));
             pushDebug("tool", `tool ${ev.tool.name}(`, `${ev.tool.args_preview || ""})`);
           }
           if (ev.citation && ev.citation.doc_id && !seenCitations.has(ev.citation.doc_id)) {
@@ -417,6 +516,7 @@
       textNode.textContent = `Error: ${err.message}`;
       pushDebug("error", "fetch error:", err.message);
     } finally {
+      clearActivity();
       sendBtn.disabled = false;
     }
 
@@ -433,6 +533,8 @@
   firstSuggestions.querySelectorAll(".suggestion").forEach(s => {
     s.addEventListener("click", () => send(s.dataset.text));
   });
+
+  showWelcome();
 </script>
 </body>
 </html>
