@@ -1,82 +1,129 @@
 #!/bin/bash
-set -e
+# Post-provision hook: seed the Postgres database with sample data.
+#
+# This runs on the developer's machine after `azd up` finishes provisioning.
+# It is intentionally tolerant of local environment quirks so that
+# infrastructure provisioning is never marked as "failed" because of a
+# seeding hiccup. If anything here fails, you can re-run it with:
+#
+#     azd hooks run postprovision
+#
+set -uo pipefail
 
 echo "Running post-provision setup..."
 
-# Get environment values
-echo "Retrieving environment values..."
-POSTGRES_URL=$(azd env get-values --output json | jq -r '.POSTGRES_URL // empty')
+# ---- Resolve env ----------------------------------------------------------
+ENV_VALUES=$(azd env get-values --output json 2>/dev/null || echo '{}')
+POSTGRES_URL=$(printf '%s' "$ENV_VALUES" | jq -r '.POSTGRES_URL // empty')
+POSTGRES_HOST=$(printf '%s' "$ENV_VALUES" | jq -r '.POSTGRES_HOST // empty')
+POSTGRES_RG=$(printf '%s' "$ENV_VALUES" | jq -r '.AZURE_RESOURCE_GROUP // empty')
+AGENT_URL=$(printf '%s' "$ENV_VALUES" | jq -r '.AGENT_URL // empty')
+MCP_SERVER_URL=$(printf '%s' "$ENV_VALUES" | jq -r '.MCP_SERVER_URL // empty')
 
-# Populate database with sales data
-if [ -n "$POSTGRES_URL" ]; then
-  echo ""
-  echo "📊 Populating database with sales data..."
-  
-  # Check if data files exist
-  if [ ! -f "data/product_data.json" ] || [ ! -f "data/reference_data.json" ]; then
-    echo "⚠️  Warning: Data files not found. Downloading..."
-    echo ""
-    echo "Downloading product_data.json (~2-3 GB, this may take a few minutes)..."
-    curl -L --progress-bar \
-      "https://raw.githubusercontent.com/microsoft/aitour26-WRK540-unlock-your-agents-potential-with-model-context-protocol/main/data/database/product_data.json" \
-      -o data/product_data.json
-    
-    echo "Downloading reference_data.json..."
-    curl -L --progress-bar \
-      "https://raw.githubusercontent.com/microsoft/aitour26-WRK540-unlock-your-agents-potential-with-model-context-protocol/main/data/database/reference_data.json" \
-      -o data/reference_data.json
-  fi
-  
-  # Install dependencies if needed
-  if ! python3 -c "import asyncpg" 2>/dev/null; then
-    echo "Installing required Python packages..."
-    pip install -q asyncpg
-  fi
-  
-  # Run database generation script
-  echo "Running database generation script..."
-  export POSTGRES_URL="$POSTGRES_URL"
-  python3 data/generate_database.py
-  
-  echo "✅ Database populated successfully!"
-else
+# ---- Seed database --------------------------------------------------------
+if [ -z "$POSTGRES_URL" ]; then
   echo "⚠️  POSTGRES_URL not found - skipping database population"
-fi
+elif [ ! -f "data/product_data.json" ] || [ ! -f "data/reference_data.json" ]; then
+  echo "⚠️  Required data files (data/product_data.json, data/reference_data.json) missing."
+  echo "    These ship with the repo - check that you cloned a complete copy."
+else
+  echo "📊 Populating database with sample data..."
 
-echo ""
-echo "✅ Post-provision setup complete!"
-echo ""
-
-# Get service URLs from azd environment
-AGENT_URL=$(azd env get-values --output json | jq -r '.AGENT_URL // empty')
-MCP_SERVER_URL=$(azd env get-values --output json | jq -r '.MCP_SERVER_URL // empty')
-
-if [ -n "$AGENT_URL" ]; then
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "🚀 Your LangChain Agent is Ready!"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo ""
-  echo "🌐 WEB CHAT INTERFACE (Open in browser):"
-  echo "   ${AGENT_URL}/"
-  echo ""
-  echo "📊 API ENDPOINTS:"
-  echo "   Chat API:      ${AGENT_URL}/api/chat (POST with JSON)"
-  echo "   Health Check:  ${AGENT_URL}/api/health"
-  if [ -n "$MCP_SERVER_URL" ]; then
-    echo "   MCP Server:    ${MCP_SERVER_URL}/mcp"
+  # Add this machine's public IP to the Postgres firewall so the seed script
+  # can connect. Idempotent: ignore "already exists".
+  if [ -n "$POSTGRES_HOST" ] && [ -n "$POSTGRES_RG" ]; then
+    PG_SERVER_NAME="${POSTGRES_HOST%%.*}"
+    CLIENT_IP=$(curl -fsS https://api.ipify.org 2>/dev/null || true)
+    if [ -n "$CLIENT_IP" ]; then
+      echo "   Adding firewall rule for $CLIENT_IP on $PG_SERVER_NAME..."
+      az postgres flexible-server firewall-rule create \
+        --resource-group "$POSTGRES_RG" \
+        --name "$PG_SERVER_NAME" \
+        --rule-name "azd-postprovision-$(date +%Y%m%d)" \
+        --start-ip-address "$CLIENT_IP" \
+        --end-ip-address "$CLIENT_IP" \
+        --only-show-errors >/dev/null 2>&1 || echo "   (firewall rule already present, continuing)"
+    fi
   fi
-  echo ""
-  echo "💡 Try these questions in the web interface:"
-  echo "   • What tables are in the database?"
-  echo "   • How many products do we have?"
-  echo "   • Show me the top 5 most expensive products"
-  echo "   • Find hammers using semantic search"
-  echo ""
-  echo "🔧 Test via curl:"
-  echo "   curl -X POST ${AGENT_URL}/api/chat \\"
-  echo "     -H 'Content-Type: application/json' \\"
-  echo "     -d '{\"message\":\"What tools do you have?\"}'"
-  echo ""
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  # Pick a working Python interpreter and install asyncpg into a venv if needed.
+  # We use a venv to avoid PEP-668 "externally managed environment" failures on
+  # macOS Homebrew / Debian-packaged Python.
+  PY=$(command -v python3 || command -v python || true)
+  if [ -z "$PY" ]; then
+    echo "❌ python3 is not on PATH - install Python 3.10+ then re-run: azd hooks run postprovision"
+    exit 0  # don't block provisioning
+  fi
+
+  VENV_DIR=".azd-postprovision-venv"
+  if [ ! -d "$VENV_DIR" ]; then
+    echo "   Creating ephemeral venv for seeding..."
+    "$PY" -m venv "$VENV_DIR" || {
+      echo "❌ Could not create venv. Install python3-venv and re-run: azd hooks run postprovision"
+      exit 0
+    }
+  fi
+  # shellcheck disable=SC1091
+  . "$VENV_DIR/bin/activate"
+
+  if ! python -c "import asyncpg, pgvector" 2>/dev/null; then
+    echo "   Installing asyncpg + pgvector..."
+    python -m pip install --quiet --disable-pip-version-check asyncpg pgvector || {
+      echo "❌ pip install failed. Re-run later with: azd hooks run postprovision"
+      exit 0
+    }
+  fi
+
+  echo "   Running data/generate_database.py..."
+  POSTGRES_URL="$POSTGRES_URL" python data/generate_database.py && \
+    echo "✅ Core database populated successfully!" || \
+    echo "⚠️  Core seeding failed. Fix the issue and re-run: azd hooks run postprovision"
+
+  echo "   Running data/generate_sales_kb.py (sales KB / case studies / pricing)..."
+  # generate_sales_kb.py needs azure-identity + openai (+ aiohttp for the
+  # async transport DefaultAzureCredential picks up under asyncio).
+  if ! python -c "import azure.identity, openai, dotenv, aiohttp" 2>/dev/null; then
+    echo "   Installing azure-identity + openai + python-dotenv + aiohttp..."
+    python -m pip install --quiet --disable-pip-version-check azure-identity openai python-dotenv aiohttp || true
+  fi
+  AZURE_OPENAI_ENDPOINT_VAL=$(printf '%s' "$ENV_VALUES" | jq -r '.AZURE_OPENAI_ENDPOINT // empty')
+  AZURE_OPENAI_EMBEDDING_DEPLOYMENT_VAL=$(printf '%s' "$ENV_VALUES" | jq -r '.AZURE_OPENAI_EMBEDDING_DEPLOYMENT // empty')
+  POSTGRES_URL="$POSTGRES_URL" \
+    AZURE_OPENAI_ENDPOINT="$AZURE_OPENAI_ENDPOINT_VAL" \
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT="$AZURE_OPENAI_EMBEDDING_DEPLOYMENT_VAL" \
+    python data/generate_sales_kb.py && \
+      echo "✅ Sales KB / case studies / pricing seeded!" || \
+      echo "⚠️  Sales-KB seeding failed. Fix and re-run: azd hooks run postprovision"
+
+  deactivate || true
+fi
+
+# ---- Print summary --------------------------------------------------------
+echo ""
+if [ -n "$AGENT_URL" ]; then
+  cat <<EOF
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 Your LangChain Agent is Ready!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 Web chat:   ${AGENT_URL}/
+📊 Chat API:   ${AGENT_URL}/api/chat
+   Health:     ${AGENT_URL}/api/health
+EOF
+  if [ -n "$MCP_SERVER_URL" ]; then
+    echo "   MCP Server: ${MCP_SERVER_URL}/mcp"
+  fi
+  cat <<EOF
+
+💡 Try these in the web interface:
+   • What tables are in the database?
+   • How many products do we have?
+   • Show me the top 5 most expensive products
+   • Find hammers using semantic search
+
+🔧 Re-run seeding any time:    azd hooks run postprovision
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EOF
 fi
 echo ""
+

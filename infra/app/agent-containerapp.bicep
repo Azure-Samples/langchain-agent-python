@@ -7,6 +7,8 @@ param containerAppsEnvironmentName string
 param containerRegistryName string
 param openAiEndpoint string
 param openAiDeploymentName string
+param openAiNanoDeploymentName string
+param openAiEmbeddingDeploymentName string
 param mcpServerUrl string
 param applicationInsightsConnectionString string
 param exists bool
@@ -84,6 +86,14 @@ resource app 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'AZURE_OPENAI_DEPLOYMENT'
               value: openAiDeploymentName
+            }
+            {
+              name: 'AZURE_OPENAI_NANO_DEPLOYMENT'
+              value: openAiNanoDeploymentName
+            }
+            {
+              name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT'
+              value: openAiEmbeddingDeploymentName
             }
             {
               name: 'MCP_SERVER_URL'
