@@ -94,7 +94,17 @@ azd auth login
 azd up
 ```
 
-`azd up` provisions Azure OpenAI (with `gpt-5-mini` and `text-embedding-ada-002`), a Postgres Flexible Server with pgvector, a Container Apps environment, and the two container images. After the build finishes a postprovision hook seeds the database with the Zava DIY catalogue (~424 products with pre-computed embeddings).
+`azd up` provisions Azure OpenAI (with three model deployments: `gpt-5.4-mini` for the main agent, `gpt-5-nano` for middleware utilities, and `text-embedding-3-small` for vector search), a Postgres Flexible Server with pgvector, a Container Apps environment, and the two container images. After the build finishes a postprovision hook seeds the database with the Zava DIY catalogue (~424 products with pre-computed embeddings) and the sales knowledge base (case studies, pricing plans, KB articles).
+
+**Estimated time:** ~10–15 minutes end-to-end on a fresh subscription. Postgres flexible-server creation is the slowest single step (~5–7 minutes); the model deployments, container builds, and seeding fill the rest.
+
+### Deployment notes
+
+- The default region is `eastus2`. Override with `azd env set AZURE_LOCATION <region>` before `azd up`. The `gpt-5.4-mini` and `gpt-5-nano` deployments need a region that has both available (e.g. `eastus2`, `swedencentral`).
+- The postprovision hook adds your current public IP to the Postgres firewall so it can run the seeders. Re-run the hook from a different network with `azd hooks run postprovision`.
+- If `azd up` is interrupted mid-deploy, an Azure deployment may stay `Running` server-side. Re-running too soon yields `DeploymentActive: cannot be saved`. Wait for the Postgres deployment to finish (`az deployment group show -g rg-<env> -n postgres --query properties.provisioningState`), then re-run.
+- Newly created model deployments occasionally take a minute to become reachable; the first call may return `DeploymentNotFound`. Re-running `azd hooks run postprovision` after a minute clears it.
+- The first `azd up` builds two container images with `uv` (much faster than pip-based base images). Subsequent `azd deploy <service>` rebuilds for a single service take ~30–60 seconds.
 
 When it finishes you'll see something like:
 
@@ -148,7 +158,7 @@ To remove every resource later, run `azd down`.
 `agent/app/agent.py` builds the agent at startup inside a Starlette `lifespan` hook so the MCP connection, OpenAI credentials, and middleware closures are reused across requests:
 
 ```python
-main  = ChatOpenAI(model="gpt-5-mini", use_responses_api=True, ...)
+main  = ChatOpenAI(model="gpt-5.4-mini", use_responses_api=True, ...)
 nano  = ChatOpenAI(model="gpt-5-nano", use_responses_api=True, tags=["nano-utility"])
 
 refine_query      = make_refine_query(nano)
@@ -298,10 +308,14 @@ Application Insights captures every request to `/api/chat`, every MCP tool call,
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Deployment quota exceeded`                | Set a different region: `azd env set AZURE_LOCATION eastus2` then re-run `azd up`.                                                                            |
 | `Authentication failed`                    | Re-login with `az login && azd auth login`.                                                                                                                   |
-| `gpt-5-mini` not available in region       | Try `eastus2`, `westus`, or `swedencentral`. Verify in the [Azure OpenAI model matrix](https://learn.microsoft.com/azure/ai-services/openai/concepts/models). |
+| `gpt-5.4-mini` not available in region     | Try `eastus2`, `westus`, or `swedencentral`. Verify in the [Azure OpenAI model matrix](https://learn.microsoft.com/azure/ai-services/openai/concepts/models). |
+| `DeploymentActive: cannot be saved`        | A previous `azd up` was cancelled while a sub-deployment (usually Postgres) was still running. Wait for it to finish, then re-run `azd up`.                   |
+| `DeploymentNotFound` from sales-KB seeder  | Newly created model deployments need a minute to propagate. Re-run `azd hooks run postprovision`.                                                             |
+| `ModuleNotFoundError: aiohttp` in seeder   | Delete `.azd-postprovision-venv/` and re-run `azd hooks run postprovision` so it reinstalls cleanly.                                                          |
+| `INVALID_CONCURRENT_GRAPH_UPDATE`          | A tool returned a `Command` update for a state key that has no reducer. All scalar keys in `agent/app/state.py` use a `_take_last` reducer; lists use a merging reducer. Add one when you introduce a new key. |
 | Container Apps not starting                | `azd monitor` and inspect the _Revision_ logs in the portal, or `az containerapp logs show`.                                                                  |
 | Agent loads no tools (`mcp_tool_count: 0`) | Check that `MCP_SERVER_URL` points at `https://<mcp-fqdn>/mcp` and that the MCP container is `Running`.                                                       |
-| Semantic search returns nothing            | The seed embeddings must be generated by the same model deployed in your Azure OpenAI account. Re-run `azd hooks run postprovision`.                          |
+| Semantic search returns nothing            | The seed embeddings must be generated by the same model deployed in your Azure OpenAI account (`text-embedding-3-small`). Re-run `azd hooks run postprovision`. |
 
 ## Clean up
 
