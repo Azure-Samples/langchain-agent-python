@@ -80,10 +80,11 @@ else
     echo "⚠️  Core seeding failed. Fix the issue and re-run: azd hooks run postprovision"
 
   echo "   Running data/generate_sales_kb.py (sales KB / case studies / pricing)..."
-  # generate_sales_kb.py needs azure-identity + openai for embedding generation.
-  if ! python -c "import azure.identity, openai, dotenv" 2>/dev/null; then
-    echo "   Installing azure-identity + openai + python-dotenv..."
-    python -m pip install --quiet --disable-pip-version-check azure-identity openai python-dotenv || true
+  # generate_sales_kb.py needs azure-identity + openai (+ aiohttp for the
+  # async transport DefaultAzureCredential picks up under asyncio).
+  if ! python -c "import azure.identity, openai, dotenv, aiohttp" 2>/dev/null; then
+    echo "   Installing azure-identity + openai + python-dotenv + aiohttp..."
+    python -m pip install --quiet --disable-pip-version-check azure-identity openai python-dotenv aiohttp || true
   fi
   AZURE_OPENAI_ENDPOINT_VAL=$(printf '%s' "$ENV_VALUES" | jq -r '.AZURE_OPENAI_ENDPOINT // empty')
   AZURE_OPENAI_EMBEDDING_DEPLOYMENT_VAL=$(printf '%s' "$ENV_VALUES" | jq -r '.AZURE_OPENAI_EMBEDDING_DEPLOYMENT // empty')
