@@ -9,14 +9,14 @@ products:
   - langchain
 urlFragment: langchain-agent-mcp
 name: LangChain Sales Agent with Handoffs and Model Context Protocol
-description: A LangChain v1 sales-conversation agent that uses the Azure OpenAI Responses API, a 6-step Fin-style funnel, an MCP server for catalog and CRM tools, and ships with one command via azd up.
+description: A LangChain v1 sales-conversation agent that uses the Azure OpenAI Responses API, an MCP server for catalog and CRM tools, and ships with one command via azd up.
 ---
 
 <!-- YAML front-matter schema: https://review.learn.microsoft.com/en-us/help/contribute/samples/process/onboarding?branch=main#supported-metadata-fields-for-readmemd -->
 
 # LangChain Sales Agent (Handoffs + MCP)
 
-A two-service Python sample that shows how to build a **Fin-style sales conversation agent** with [LangChain v1 middleware](https://python.langchain.com/), drive it through a 6-step sales funnel using the [handoffs pattern](https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs-customer-support), and back it with a [Model Context Protocol](https://modelcontextprotocol.io/) tool server, [Azure OpenAI](https://learn.microsoft.com/azure/ai-services/openai/), and Postgres + [pgvector](https://github.com/pgvector/pgvector). Deploy the whole stack to [Azure Container Apps](https://learn.microsoft.com/azure/container-apps/) with `azd up`.
+A two-service Python sample that shows how to build a **multi-step sales conversation agent** with [LangChain v1 middleware](https://python.langchain.com/), drive it through a 6-step sales funnel using the [handoffs pattern](https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs-customer-support), and back it with a [Model Context Protocol](https://modelcontextprotocol.io/) tool server over [Postgres](https://www.postgresql.org/) with [pgvector](https://github.com/pgvector/pgvector) for semantic search, all powered by [Azure OpenAI](https://learn.microsoft.com/azure/ai-services/openai/). Deploy the whole stack to [Azure Container Apps](https://learn.microsoft.com/azure/container-apps/) with `azd up`.
 
 ![LangChain MCP Agent](images/app-image.png)
 
@@ -26,7 +26,8 @@ A two-service Python sample that shows how to build a **Fin-style sales conversa
 
 - How to compose a **multi-step agent funnel** using `apply_step_config` middleware so each step has its own system prompt and a filtered tool list.
 - How to layer LangChain v1 middleware: **refine_query** (cheap nano model), **apply_step_config** (handoffs), **validate_response** (groundedness), and **SummarizationMiddleware**.
-- How to run a **two-tier model setup**: `gpt-5-mini` for the customer-facing turn and `gpt-5-nano` for internal middleware utility calls (tagged so the chat UI suppresses them).
+- How to run a **two-tier model setup**: `gpt-5.4-mini` for the customer-facing turn and `gpt-5-nano` for internal middleware utility calls (tagged so the chat UI suppresses them).
+- How to back retrieval with **Postgres + pgvector**: HNSW indexes over `text-embedding-3-small` vectors for case studies, KB articles, and the product catalogue.
 - How to expose **CRM-style tools** as MCP tools with FastMCP — `search_case_studies`, `search_kb_articles`, `get_pricing`, `compare_plans` — over streamable HTTP.
 - How to use **Entra ID (Managed Identity)** for keyless auth to Azure OpenAI and Postgres.
 - How to provision the whole stack with **`azd up`** and re-seed sales content with a single hook.
