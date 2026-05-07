@@ -7,9 +7,9 @@ products:
   - azure-container-apps
   - azure
   - langchain
-urlFragment: langchain-agent-mcp
-name: LangChain Sales Agent with Handoffs and Model Context Protocol
-description: A LangChain v1 sales-conversation agent that uses the Azure OpenAI Responses API, an MCP server for catalog and CRM tools, and ships with one command via azd up.
+urlFragment: langchain-agent-python
+name: LangChain Sales Agent with MCP and Azure OpenAI (Python)
+description: A multi-step LangChain v1 sales-conversation agent that uses the Azure OpenAI Responses API, an MCP server with Postgres + pgvector for catalog and CRM tools, and ships with one command via azd up.
 ---
 
 <!-- YAML front-matter schema: https://review.learn.microsoft.com/en-us/help/contribute/samples/process/onboarding?branch=main#supported-metadata-fields-for-readmemd -->
