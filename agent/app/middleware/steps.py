@@ -102,6 +102,16 @@ STEP_CONFIG: dict[Step, dict] = {
 }
 
 
+# Style rules appended to every step prompt so the assistant's voice is
+# consistent regardless of which step is active.
+GLOBAL_STYLE_RULES = """
+
+## Style rules (apply to every reply)
+- **Never use em dashes (—) or en dashes (–).** Use a comma, full stop, parentheses, or a colon instead. This applies to every sentence you write, including casual asides.
+- Prefer short sentences over long ones joined by dashes.
+"""
+
+
 @wrap_model_call
 async def apply_step_config(request: ModelRequest, handler):
     """Inject the step-specific system prompt and filter the tool list."""
@@ -110,7 +120,7 @@ async def apply_step_config(request: ModelRequest, handler):
     config = STEP_CONFIG.get(step, STEP_CONFIG["greet"])
 
     # Inject system prompt at the head of the messages list (replace any prior).
-    system_msg = SystemMessage(content=config["prompt"])
+    system_msg = SystemMessage(content=config["prompt"] + GLOBAL_STYLE_RULES)
     msgs = [m for m in request.messages if not (hasattr(m, "type") and m.type == "system")]
     request.messages = [system_msg, *msgs]
 

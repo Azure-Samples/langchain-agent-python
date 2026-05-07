@@ -15,13 +15,13 @@
       "value": "${AZURE_PRINCIPAL_ID}"
     },
     "openAiDeploymentName": {
-      "value": "gpt-5-mini"
+      "value": "gpt-5.4-mini"
     },
     "openAiModelName": {
-      "value": "gpt-5-mini"
+      "value": "gpt-5.4-mini"
     },
     "openAiModelVersion": {
-      "value": "2025-08-07"
+      "value": "2026-03-17"
     },
     "mcpServerExists": {
       "value": "${MCP_SERVER_EXISTS=false}"

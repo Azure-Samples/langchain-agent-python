@@ -16,17 +16,26 @@ param postgresLocation string = 'eastus2'
 @description('Id of the principal to assign application roles')
 param principalId string = ''
 
-@description('Azure OpenAI model deployment name')
-param openAiDeploymentName string = 'gpt-5-mini'
+@description('Azure OpenAI main model deployment name')
+param openAiDeploymentName string = 'gpt-5.4-mini'
 
-@description('Azure OpenAI model name')
-param openAiModelName string = 'gpt-5-mini'
+@description('Azure OpenAI main model name')
+param openAiModelName string = 'gpt-5.4-mini'
 
-@description('Azure OpenAI model version')
-param openAiModelVersion string = '2025-08-07'
+@description('Azure OpenAI main model version')
+param openAiModelVersion string = '2026-03-17'
 
-@description('Azure OpenAI model capacity')
+@description('Azure OpenAI main model capacity (TPM x1000)')
 param openAiModelCapacity int = 100
+
+@description('Azure OpenAI nano (utility) model deployment name')
+param openAiNanoDeploymentName string = 'gpt-5-nano'
+
+@description('Azure OpenAI nano model version')
+param openAiNanoModelVersion string = '2025-08-07'
+
+@description('Azure OpenAI embedding model deployment name')
+param openAiEmbeddingDeploymentName string = 'text-embedding-3-small'
 
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
@@ -110,11 +119,23 @@ module openAi 'core/ai/cognitiveservices.bicep' = {
         }
       }
       {
-        name: 'text-embedding-ada-002'
+        name: openAiNanoDeploymentName
         model: {
           format: 'OpenAI'
-          name: 'text-embedding-ada-002'
-          version: '2'
+          name: 'gpt-5-nano'
+          version: openAiNanoModelVersion
+        }
+        sku: {
+          name: 'GlobalStandard'
+          capacity: 100
+        }
+      }
+      {
+        name: openAiEmbeddingDeploymentName
+        model: {
+          format: 'OpenAI'
+          name: 'text-embedding-3-small'
+          version: '1'
         }
         sku: {
           name: 'Standard'
@@ -156,7 +177,7 @@ module mcpServer 'app/mcp-containerapp.bicep' = {
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
     postgresConnectionString: postgres.outputs.connectionString
     openAiEndpoint: openAi.outputs.endpoint
-    embeddingDeployment: 'text-embedding-ada-002'
+    embeddingDeployment: openAiEmbeddingDeploymentName
     exists: mcpServerExists
   }
 }
@@ -187,6 +208,8 @@ module agent 'app/agent-containerapp.bicep' = {
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
     openAiEndpoint: openAi.outputs.endpoint
     openAiDeploymentName: openAiDeploymentName
+    openAiNanoDeploymentName: openAiNanoDeploymentName
+    openAiEmbeddingDeploymentName: openAiEmbeddingDeploymentName
     mcpServerUrl: mcpServer.outputs.uri
     exists: agentExists
   }
@@ -222,7 +245,8 @@ output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.outputs.logi
 
 output AZURE_OPENAI_ENDPOINT string = openAi.outputs.endpoint
 output AZURE_OPENAI_DEPLOYMENT string = openAiDeploymentName
-output AZURE_OPENAI_EMBEDDING_DEPLOYMENT string = 'text-embedding-ada-002'
+output AZURE_OPENAI_NANO_DEPLOYMENT string = openAiNanoDeploymentName
+output AZURE_OPENAI_EMBEDDING_DEPLOYMENT string = openAiEmbeddingDeploymentName
 
 output POSTGRES_HOST string = postgres.outputs.fqdn
 output POSTGRES_DATABASE string = postgres.outputs.databaseName
