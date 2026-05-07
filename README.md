@@ -7,6 +7,7 @@ products:
   - azure-container-apps
   - azure
   - langchain
+  - pgvector
 urlFragment: langchain-agent-python
 name: LangChain Sales Agent with MCP and Azure OpenAI (Python)
 description: A multi-step LangChain v1 sales-conversation agent that uses the Azure OpenAI Responses API, an MCP server with Postgres + pgvector for catalog and CRM tools, and ships with one command via azd up.
@@ -19,6 +20,8 @@ description: A multi-step LangChain v1 sales-conversation agent that uses the Az
 A two-service Python sample that shows how to build a **multi-step sales conversation agent** with [LangChain v1 middleware](https://python.langchain.com/), drive it through a 6-step sales funnel using the [handoffs pattern](https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs-customer-support), and back it with a [Model Context Protocol](https://modelcontextprotocol.io/) tool server over [Postgres](https://www.postgresql.org/) with [pgvector](https://github.com/pgvector/pgvector) for semantic search, all powered by [Azure OpenAI](https://learn.microsoft.com/azure/ai-services/openai/). Deploy the whole stack to [Azure Container Apps](https://learn.microsoft.com/azure/container-apps/) with `azd up`.
 
 ![LangChain MCP Agent](images/app-image.png)
+
+![Agent debug panel](images/debug-image.png)
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/langchain-agent-python)
 
