@@ -17,7 +17,7 @@ description: A multi-step LangChain v1 sales-conversation agent that uses the Az
 
 # LangChain Sales Agent (Responses API + MCP)
 
-A Python sample that shows how to build a **multi-step sales agent** with [LangChain v1](https://python.langchain.com/) and [Azure OpenAI](https://docs.langchain.com/oss/python/integrations/chat/azure_chat_openai), drive sales through a 6-step funnel using the [handoffs pattern](https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs-customer-support), and ground responses in data with a [Model Context Protocol](https://modelcontextprotocol.io/) tool server over [Postgres](https://www.postgresql.org/) with [pgvector](https://github.com/pgvector/pgvector) for semantic search. Deploy the whole stack to [Azure Container Apps](https://learn.microsoft.com/azure/container-apps/) with `azd up`.
+A Python sample that shows how to build a **multi-step sales agent** with [LangChain v1](https://python.langchain.com/) and [Azure OpenAI](https://docs.langchain.com/oss/python/integrations/chat/azure_chat_openai) that drive sales through a 6-step funnel using the [handoffs pattern](https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs-customer-support). The agent grounds it's responses in data stored in a [Postgres](https://www.postgresql.org/) database with [pgvector](https://github.com/pgvector/pgvector) for semantic search. The database is deployed as an [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server, that exposes several tools the agent can use to quickly access data. Since the agent is using the Responses API, it can easily connect to MCP servers and comes with several build in tools like a code interpreter and image genration. [Get started now](#quick-start).
 
 ![LangChain MCP Agent](images/app-image.png)
 
@@ -27,35 +27,28 @@ A Python sample that shows how to build a **multi-step sales agent** with [LangC
 
 ## What you'll learn
 
-- How to compose a **multi-step agent funnel** using `apply_step_config` middleware so each step has its own system prompt and a filtered tool list.
-- How to layer LangChain v1 middleware: **refine_query** (cheap nano model), **apply_step_config** (handoffs), **validate_response** (groundedness), and **SummarizationMiddleware**.
-- How to run a **two-tier model setup**: `gpt-5.4-mini` for the customer-facing turn and `gpt-5-nano` for internal middleware utility calls (tagged so the chat UI suppresses them).
+- How to use LangChain's [Handoff]() pattern for multistep tasks.
+- How to use Middleware in LangChain to refine the users query, manage context and validate response groundedness. (`gpt-5.4-mini` will power the main agent and middleware tasks will use `gpt-5-nano`)
 - How to back retrieval with **Postgres + pgvector**: HNSW indexes over `text-embedding-3-small` vectors for case studies, KB articles, and the product catalogue.
-- How to expose **CRM-style tools** as MCP tools with FastMCP — `search_case_studies`, `search_kb_articles`, `get_pricing`, `compare_plans` — over streamable HTTP.
+- How to expose **CRM-style tools** as MCP tools with [FastMCP](): `search_case_studies`, `search_kb_articles`, `get_pricing`, `compare_plans` — over streamable HTTP.
 - How to use **Entra ID (Managed Identity)** for keyless auth to Azure OpenAI and Postgres.
-- How to provision the whole stack with **`azd up`** and re-seed sales content with a single hook.
+
+
+## Architecture
+
+The core LangChain Agent and the PostgreSQL MCP server are deployed independently as two Container Apps:
+
+![Zava Sales Agent architecture](images/architecture.png)
+
+The agent is the only public-facing service. The MCP server is reachable only from inside the Container Apps environment. All Azure access uses a user-assigned managed identity with RBAC to Azure OpenAI and PostgreSQL.
 
 ## The 6-step sales funnel
 
 Each step is a small system prompt plus a filtered tool subset. The agent moves between steps by calling state-mutating tools (`set_intent`, `advance_to_step`, `back_to_greet`, `escalate_to_ae`):
 
-```text
-  greet  ─►  qualify  ─►  educate  ─►  objection  ─►  book  ─►  handoff_to_ae
-   │            │           ▲ │           │           │            │
-   │            │           │ │           │           │            ▼
-   │            ▼           │ ▼           ▼           ▼          (done)
-   └─ small talk    BANT fields  product/pricing  rebuttals    propose times
-```
+![Zava Sales Agent 6-step funnel](images/sales-funnel.svg)
 
 The state machine lives in [`agent/app/middleware/steps.py`](agent/app/middleware/steps.py); the per-step prompts are plain text in [`agent/app/prompts/`](agent/app/prompts/).
-
-## Architecture
-
-Two services, deployed independently as Container Apps:
-
-![Zava Sales Agent architecture](images/architecture.png)
-
-The agent is the only public-facing service. The MCP server is reachable only from inside the Container Apps environment. All Azure access uses a user-assigned managed identity with RBAC to Azure OpenAI and PostgreSQL.
 
 ## Prerequisites
 
@@ -69,7 +62,7 @@ The fastest path is to open the repo in **GitHub Codespaces** — every tool abo
 
 ## Quick start
 
-Deploy the whole stack to Azure with one command:
+Deploy the app to Azure:
 
 ```bash
 az login
@@ -282,21 +275,6 @@ az containerapp logs show -n <agent-name> -g <rg-name> --follow              # t
 ```
 
 Application Insights captures every request to `/api/chat`, every MCP tool call, and every Azure OpenAI request, with end-to-end traces.
-
-## Troubleshooting
-
-| Symptom                                    | Fix                                                                                                                                                                                                            |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Deployment quota exceeded`                | Set a different region: `azd env set AZURE_LOCATION eastus2` then re-run `azd up`.                                                                                                                             |
-| `Authentication failed`                    | Re-login with `az login && azd auth login`.                                                                                                                                                                    |
-| `gpt-5.4-mini` not available in region     | Try `eastus2`, `westus`, or `swedencentral`. Verify in the [Azure OpenAI model matrix](https://learn.microsoft.com/azure/ai-services/openai/concepts/models).                                                  |
-| `DeploymentActive: cannot be saved`        | A previous `azd up` was cancelled while a sub-deployment (usually Postgres) was still running. Wait for it to finish, then re-run `azd up`.                                                                    |
-| `DeploymentNotFound` from sales-KB seeder  | Newly created model deployments need a minute to propagate. Re-run `azd hooks run postprovision`.                                                                                                              |
-| `ModuleNotFoundError: aiohttp` in seeder   | Delete `.azd-postprovision-venv/` and re-run `azd hooks run postprovision` so it reinstalls cleanly.                                                                                                           |
-| `INVALID_CONCURRENT_GRAPH_UPDATE`          | A tool returned a `Command` update for a state key that has no reducer. All scalar keys in `agent/app/state.py` use a `_take_last` reducer; lists use a merging reducer. Add one when you introduce a new key. |
-| Container Apps not starting                | `azd monitor` and inspect the _Revision_ logs in the portal, or `az containerapp logs show`.                                                                                                                   |
-| Agent loads no tools (`mcp_tool_count: 0`) | Check that `MCP_SERVER_URL` points at `https://<mcp-fqdn>/mcp` and that the MCP container is `Running`.                                                                                                        |
-| Semantic search returns nothing            | The seed embeddings must be generated by the same model deployed in your Azure OpenAI account (`text-embedding-3-small`). Re-run `azd hooks run postprovision`.                                                |
 
 ## Clean up
 
