@@ -10,9 +10,28 @@ The funnel mirrors a Fin/SDR-style outbound + inbound flow:
 
 from __future__ import annotations
 
-from typing import Literal, NotRequired
+from typing import Annotated, Literal, NotRequired, TypeVar
 
 from langchain.agents import AgentState
+
+_T = TypeVar("_T")
+
+
+def _take_last(left: _T | None, right: _T | None) -> _T | None:
+    """Reducer: prefer the most recent non-None value.
+
+    Without this, two tool calls in the same super-step that both update the
+    same scalar key (e.g. two `set_intent` calls) raise
+    INVALID_CONCURRENT_GRAPH_UPDATE. Most of our state keys are
+    last-write-wins scalars, so this is the right semantic.
+    """
+    return right if right is not None else left
+
+
+def _merge_list(left: list | None, right: list | None) -> list:
+    """Reducer: append right onto left."""
+    return [*(left or []), *(right or [])]
+
 
 Step = Literal[
     "greet",
@@ -37,33 +56,33 @@ Intent = Literal[
 class SalesState(AgentState):
     """Conversation + sales-funnel state."""
 
-    # Funnel position
-    current_step: NotRequired[Step]
-    intent: NotRequired[Intent]
+    # Funnel position (last-write-wins to tolerate parallel tool calls).
+    current_step: NotRequired[Annotated[Step, _take_last]]
+    intent: NotRequired[Annotated[Intent, _take_last]]
 
     # Lead identification (set by greet/qualify)
-    lead_id: NotRequired[int | None]
-    lead_email: NotRequired[str | None]
-    company_name: NotRequired[str | None]
+    lead_id: NotRequired[Annotated[int | None, _take_last]]
+    lead_email: NotRequired[Annotated[str | None, _take_last]]
+    company_name: NotRequired[Annotated[str | None, _take_last]]
 
     # Qualification fields (BANT-ish; populated incrementally during qualify)
-    industry: NotRequired[str | None]
-    team_size: NotRequired[int | None]
-    budget: NotRequired[str | None]            # "<$10k" | "$10-50k" | ">$50k" | "unknown"
-    authority: NotRequired[str | None]         # "decision_maker" | "influencer" | "evaluator"
-    need: NotRequired[str | None]              # short text summary of the buyer's pain
-    timeline: NotRequired[str | None]          # "this_quarter" | "next_quarter" | "exploring"
-    current_tools: NotRequired[list[str]]      # tools they use today
+    industry: NotRequired[Annotated[str | None, _take_last]]
+    team_size: NotRequired[Annotated[int | None, _take_last]]
+    budget: NotRequired[Annotated[str | None, _take_last]]
+    authority: NotRequired[Annotated[str | None, _take_last]]
+    need: NotRequired[Annotated[str | None, _take_last]]
+    timeline: NotRequired[Annotated[str | None, _take_last]]
+    current_tools: NotRequired[Annotated[list[str], _merge_list]]
 
-    # Objection tracking
-    objection_history: NotRequired[list[str]]  # raw objection text
+    # Objection tracking (append, never overwrite).
+    objection_history: NotRequired[Annotated[list[str], _merge_list]]
 
     # Validation: list of doc_ids retrieved on this turn (for groundedness)
-    last_retrieved_docs: NotRequired[list[str]]
+    last_retrieved_docs: NotRequired[Annotated[list[str], _merge_list]]
 
     # If validation rewrote a response asking the user to confirm escalation,
     # the next yes/no answer should be interpreted as confirming.
-    awaiting_escalation_confirmation: NotRequired[bool]
+    awaiting_escalation_confirmation: NotRequired[Annotated[bool, _take_last]]
 
 
 DEFAULT_STEP: Step = "greet"
