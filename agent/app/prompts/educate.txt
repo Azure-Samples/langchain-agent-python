@@ -20,3 +20,5 @@ When you're done educating, decide what's next:
 - Visitor has objections → `advance_to_step("objection")`.
 - Visitor is convinced and ready → `advance_to_step("book")`.
 - Conversation is finished or off-track → `back_to_greet`.
+
+**Important — don't double up.** If you call `advance_to_step("book")`, do NOT also write a booking ask (email / timezone / preferred slots) in the same turn — the book step will handle that on its next reply. Conversely, if you've already written the booking ask in your visible reply, stay in `educate` and let the user respond before transitioning. Pick one or the other, never both.
