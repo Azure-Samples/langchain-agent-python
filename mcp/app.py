@@ -408,8 +408,13 @@ async def search_case_studies(
     where_extra = []
     args: list = [pg_vec]
     if industry:
-        args.append(industry.lower())
-        where_extra.append(f"AND lower(industry) = ${len(args)}")
+        # Forgiving match: lowercase, allow space/underscore/dash equivalence,
+        # and substring match so "property management" hits "property_management".
+        normalised = re.sub(r"[\s_-]+", "_", industry.strip().lower())
+        args.append(f"%{normalised}%")
+        where_extra.append(
+            f"AND regexp_replace(lower(industry), '[\\s_-]+', '_', 'g') ILIKE ${len(args)}"
+        )
     if min_team_size is not None:
         args.append(min_team_size)
         where_extra.append(f"AND team_size >= ${len(args)}")

@@ -21,6 +21,11 @@ from typing import Any, Iterable
 from langchain_core.messages import AIMessage, AIMessageChunk
 
 _DOC_TAG = re.compile(r"\[([a-zA-Z0-9_\-]+)\]")
+# Captures: **[doc-id]** title-line  (followed by an indented summary line)
+_DOC_BLOCK = re.compile(
+    r"\*\*\[([a-zA-Z0-9_\-]+)\]\*\*\s*([^\n]*)(?:\n\s{2,}([^\n]+))?",
+    re.MULTILINE,
+)
 
 
 def event(obj: dict) -> str:
@@ -49,11 +54,55 @@ def iter_message_events(msg: Any) -> Iterable[dict]:
     msg_type = getattr(msg, "type", None)
     if msg_type in ("tool", "function"):
         # Tool result — surface citations if present in the content text.
-        content = getattr(msg, "content", "") or ""
-        if isinstance(content, str):
-            doc_ids = _DOC_TAG.findall(content)
-            if doc_ids:
-                yield {"kind": "citations", "doc_ids": doc_ids}
+        # Content may be a string or a list of content blocks (Azure/Anthropic
+        # tool-result format). Normalise to a single string before regexing.
+        raw = getattr(msg, "content", "") or ""
+        if isinstance(raw, list):
+            parts = []
+            for block in raw:
+                if isinstance(block, dict):
+                    parts.append(
+                        block.get("text")
+                        or block.get("content")
+                        or (block.get("output") if isinstance(block.get("output"), str) else "")
+                        or ""
+                    )
+                elif isinstance(block, str):
+                    parts.append(block)
+            content = "\n".join(p for p in parts if p)
+        else:
+            content = raw if isinstance(raw, str) else str(raw)
+        if content:
+            # First, try the rich block pattern (search_* tools format their
+            # results as `- **[doc-id]** title\n  snippet`). For each match,
+            # emit a structured citation with title + snippet so the UI can
+            # render a hover card.
+            seen: set[str] = set()
+            for m in _DOC_BLOCK.finditer(content):
+                doc_id = m.group(1)
+                if doc_id in seen:
+                    continue
+                seen.add(doc_id)
+                title = (m.group(2) or "").strip().strip("—").strip()
+                snippet = (m.group(3) or "").strip()
+                yield {
+                    "kind": "citation",
+                    "citation": {
+                        "doc_id": doc_id,
+                        "title": title,
+                        "snippet": snippet,
+                    },
+                }
+            # Fallback for tool results that don't use the bold-bracket
+            # convention (e.g. get_pricing returns JSON with `doc_id`).
+            for doc_id in _DOC_TAG.findall(content):
+                if doc_id in seen:
+                    continue
+                seen.add(doc_id)
+                yield {
+                    "kind": "citation",
+                    "citation": {"doc_id": doc_id, "title": "", "snippet": ""},
+                }
         return
 
     tool_names = _tool_names_from_chunk(msg)

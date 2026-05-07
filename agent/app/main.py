@@ -221,7 +221,9 @@ async def chat(request):
                         yield event({"tool": ev["tool"]})
                     elif ev["kind"] == "image":
                         yield event({"image": ev["image"]})
-                    elif ev["kind"] == "citations":
+                    elif ev["kind"] == "citation":
+                        yield event({"citation": ev["citation"]})
+                    elif ev["kind"] == "citations":  # legacy
                         for doc_id in ev["doc_ids"]:
                             yield event({"citation": {"doc_id": doc_id}})
         except Exception as exc:

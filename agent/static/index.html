@@ -106,6 +106,40 @@
   }
   .bubble.assistant .text a { color: var(--accent); }
 
+  /* Inline citation pill that replaces "[doc-id]" inside rendered text. */
+  .cite-link {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 6px; margin: 0 2px;
+    background: rgba(0,229,255,0.14); border: 1px solid rgba(0,229,255,0.4);
+    border-radius: 9px;
+    color: var(--accent); font-size: 10.5px; font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    text-decoration: none; line-height: 1;
+    cursor: pointer; vertical-align: baseline;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .cite-link:hover { background: rgba(0,229,255,0.28); transform: translateY(-1px); }
+  .cite-link.unknown { opacity: 0.55; cursor: default; }
+
+  /* Hover card anchored to the bubble. */
+  .cite-card {
+    position: absolute; z-index: 30;
+    max-width: 320px; padding: 10px 12px;
+    background: rgba(11, 16, 32, 0.97); border: 1px solid var(--frost-stroke);
+    border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+    font-size: 12.5px; line-height: 1.45; color: var(--text);
+    pointer-events: none; opacity: 0; transform: translateY(4px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+  }
+  .cite-card.visible { opacity: 1; transform: translateY(0); }
+  .cite-card .doc-id {
+    font-family: ui-monospace, monospace; font-size: 10.5px;
+    color: var(--accent); letter-spacing: 0.04em; text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .cite-card .title { font-weight: 600; margin-bottom: 4px; }
+  .cite-card .snippet { color: var(--text-dim); }
+
   .activity {
     display: inline-flex; align-items: center; gap: 8px;
     margin-top: 8px; padding: 6px 12px;
@@ -258,6 +292,11 @@
 <button class="debug-toggle" id="debug-toggle" aria-label="Toggle debug panel" title="Debug">
   🐛<span class="badge" id="debug-badge" style="display:none">0</span>
 </button>
+<div class="cite-card" id="cite-card" role="tooltip" aria-hidden="true">
+  <div class="doc-id"></div>
+  <div class="title"></div>
+  <div class="snippet"></div>
+</div>
 <div class="debug-drawer" id="debug-drawer" role="region" aria-label="Agent debug panel">
   <header>
     <span>Agent debug</span>
@@ -279,6 +318,11 @@
   const debugLog = document.getElementById("debug-log");
   const debugBadge = document.getElementById("debug-badge");
   const debugClear = document.getElementById("debug-clear");
+  const citeCard = document.getElementById("cite-card");
+
+  // doc_id -> {title, snippet}. Populated as citation events arrive on the wire,
+  // and consulted whenever we replace inline [doc-id] text with a clickable pill.
+  const citationStore = new Map();
 
   const STEP_LABELS = {
     greet: "greet (concierge)",
@@ -317,8 +361,59 @@
   function renderMarkdown(text) {
     if (!window.marked || !window.DOMPurify) return text;
     const raw = window.marked.parse(text, { breaks: true, gfm: true });
-    return window.DOMPurify.sanitize(raw);
+    const sanitized = window.DOMPurify.sanitize(raw);
+    return linkifyCitations(sanitized);
   }
+
+  // Replace plain-text "[doc-id]" inside the rendered HTML with a clickable
+  // <a class="cite-link" data-doc-id="..."> pill. Skips occurrences that are
+  // already inside an <a>/<code> element to avoid double-wrapping.
+  function linkifyCitations(html) {
+    return html.replace(/\[([a-zA-Z0-9_\-]+)\]/g, (full, docId) => {
+      // Heuristic — only linkify if it looks like one of our doc-id schemes
+      // (contains a dash, e.g. case-3, doc-12, plan-2). Avoids touching
+      // generic Markdown link text.
+      if (!/-/.test(docId)) return full;
+      const known = citationStore.has(docId);
+      const cls = known ? "cite-link" : "cite-link unknown";
+      return `<a href="#" class="${cls}" data-doc-id="${docId}">${docId}</a>`;
+    });
+  }
+
+  function showCiteCard(anchor, docId) {
+    const data = citationStore.get(docId);
+    if (!data) {
+      citeCard.classList.remove("visible");
+      return;
+    }
+    citeCard.querySelector(".doc-id").textContent = docId;
+    citeCard.querySelector(".title").textContent = data.title || "";
+    citeCard.querySelector(".snippet").textContent = data.snippet || "";
+    const r = anchor.getBoundingClientRect();
+    const cardWidth = 320;
+    const left = Math.max(8, Math.min(window.innerWidth - cardWidth - 8, r.left));
+    const top = r.bottom + 6;
+    citeCard.style.left = left + "px";
+    citeCard.style.top = top + "px";
+    citeCard.classList.add("visible");
+  }
+  function hideCiteCard() { citeCard.classList.remove("visible"); }
+
+  // Delegated hover/click for inline citation pills inside any assistant bubble.
+  document.addEventListener("mouseover", (e) => {
+    const a = e.target.closest(".cite-link");
+    if (a && !a.classList.contains("unknown")) showCiteCard(a, a.dataset.docId);
+  });
+  document.addEventListener("mouseout", (e) => {
+    if (e.target.closest(".cite-link")) hideCiteCard();
+  });
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest(".cite-link");
+    if (a) {
+      e.preventDefault();
+      if (!a.classList.contains("unknown")) showCiteCard(a, a.dataset.docId);
+    }
+  });
 
   let history = [];
   let threadId = null;
@@ -428,8 +523,7 @@ What brings you to Zava today?`;
 
     const bubble = addBubble("assistant");
     const textNode = bubble.querySelector(".text");
-    let citationsRow = null;
-    const seenCitations = new Set();
+    const turnCitations = new Set();
     let activityChip = null;
 
     function setActivity(label) {
@@ -496,14 +590,21 @@ What brings you to Zava today?`;
             setActivity(toolLabel(ev.tool.name));
             pushDebug("tool", `tool ${ev.tool.name}(`, `${ev.tool.args_preview || ""})`);
           }
-          if (ev.citation && ev.citation.doc_id && !seenCitations.has(ev.citation.doc_id)) {
-            seenCitations.add(ev.citation.doc_id);
-            pushDebug("citation", `cite`, ev.citation.doc_id);
-            if (!citationsRow) {
-              citationsRow = el("div", "citation-row");
-              bubble.appendChild(citationsRow);
+          if (ev.citation && ev.citation.doc_id) {
+            const docId = ev.citation.doc_id;
+            // Always store; later events for the same doc-id can fill in title/snippet.
+            const prev = citationStore.get(docId) || {};
+            citationStore.set(docId, {
+              title: ev.citation.title || prev.title || "",
+              snippet: ev.citation.snippet || prev.snippet || "",
+            });
+            if (!turnCitations.has(docId)) {
+              turnCitations.add(docId);
+              pushDebug("citation", "cite", docId + (ev.citation.title ? `  — ${ev.citation.title}` : ""));
             }
-            citationsRow.appendChild(el("span", "citation", ev.citation.doc_id));
+            // Re-render so any "unknown" pills already in this bubble upgrade
+            // to clickable. Cheap because the bubble's text is small.
+            if (assistantText) textNode.innerHTML = renderMarkdown(assistantText);
           }
           if (ev.error) {
             textNode.textContent = `Error: ${ev.error}`;
