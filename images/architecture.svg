@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     viewBox="0 0 1600 1000" width="1600" height="1000" font-family="Helvetica, Arial, sans-serif">
+
+  <!-- Background -->
+  <rect width="1600" height="1000" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="800" y="62" text-anchor="middle" font-size="38" font-weight="700" fill="#1e3a8a">Zava Sales Agent  ·  Architecture</text>
+  <text x="800" y="100" text-anchor="middle" font-size="20" fill="#475569">LangChain v1  +  MCP  +  Azure OpenAI  +  PostgreSQL with pgvector</text>
+
+  <!-- ============== USER (left) ============== -->
+  <rect x="40" y="430" width="300" height="160" rx="16" ry="16" fill="#ffffff" stroke="#4a9eed" stroke-width="2"/>
+  <!-- simple user glyph -->
+  <circle cx="115" cy="490" r="20" fill="#a5d8ff" stroke="#1e3a8a" stroke-width="2"/>
+  <path d="M85 540 Q115 510 145 540 L145 555 L85 555 Z" fill="#a5d8ff" stroke="#1e3a8a" stroke-width="2" stroke-linejoin="round"/>
+  <text x="170" y="490" font-size="24" font-weight="600" fill="#1e3a8a">User</text>
+  <text x="170" y="520" font-size="16" fill="#475569">Browser  ·  streaming UI</text>
+  <text x="170" y="545" font-size="14" fill="#64748b">Starlette + NDJSON</text>
+
+  <!-- arrow user -> Azure boundary -->
+  <line x1="340" y1="510" x2="408" y2="510" stroke="#4a9eed" stroke-width="3"/>
+  <polygon points="408,510 396,504 396,516" fill="#4a9eed"/>
+
+  <!-- ============== AZURE BOUNDARY ============== -->
+  <rect x="410" y="140" width="1160" height="820" rx="24" ry="24" fill="#ffffff" stroke="#4a9eed" stroke-width="2.5"/>
+  <!-- Azure header -->
+  <image href="icons/azure-logo.svg" x="700" y="158" width="44" height="44"/>
+  <text x="755" y="192" font-size="30" font-weight="700" fill="#1e3a8a">Azure</text>
+  <text x="1230" y="190" font-size="16" fill="#64748b" text-anchor="end">Resource Group  ·  rg-redesign-sales-agent  ·  eastus2</text>
+
+  <!-- ============== Container Apps Environment subsystem ============== -->
+  <rect x="450" y="230" width="1080" height="220" rx="18" ry="18" fill="#f6f9ff" stroke="#4a9eed" stroke-width="1.5"/>
+  <image href="icons/aca-env.svg" x="470" y="245" width="34" height="34"/>
+  <text x="514" y="270" font-size="20" font-weight="600" fill="#1e3a8a">Azure Container Apps Environment</text>
+
+  <!-- Agent container app card -->
+  <rect x="480" y="300" width="475" height="135" rx="14" ry="14" fill="#ffffff" stroke="#4a9eed" stroke-width="2"/>
+  <image href="icons/container-app.svg" x="500" y="320" width="44" height="44"/>
+  <text x="556" y="338" font-size="20" font-weight="600" fill="#1e3a8a">Agent</text>
+  <text x="556" y="360" font-size="14" fill="#475569">ca-agent  ·  Python  ·  Starlette</text>
+  <text x="500" y="395" font-size="14" fill="#1e3a8a" font-weight="600">LangChain v1  ·  create_agent</text>
+  <text x="500" y="416" font-size="13" fill="#64748b">4 middleware  ·  InMemorySaver checkpointer</text>
+
+  <!-- MCP container app card -->
+  <rect x="1025" y="300" width="475" height="135" rx="14" ry="14" fill="#ffffff" stroke="#4a9eed" stroke-width="2"/>
+  <image href="icons/container-app.svg" x="1045" y="320" width="44" height="44"/>
+  <text x="1101" y="338" font-size="20" font-weight="600" fill="#1e3a8a">MCP Server</text>
+  <text x="1101" y="360" font-size="14" fill="#475569">ca-mcp  ·  FastMCP  ·  Python</text>
+  <text x="1045" y="395" font-size="14" fill="#1e3a8a" font-weight="600">Catalog + CRM tools</text>
+  <text x="1045" y="416" font-size="13" fill="#64748b">pgvector retrieval  ·  embedding cache</text>
+
+  <!-- Agent <-> MCP arrow -->
+  <line x1="955" y1="367" x2="1025" y2="367" stroke="#4a9eed" stroke-width="2.5"/>
+  <polygon points="1025,367 1013,361 1013,373" fill="#4a9eed"/>
+  <polygon points="955,367 967,361 967,373" fill="#4a9eed"/>
+  <text x="990" y="358" text-anchor="middle" font-size="13" fill="#1e3a8a" font-weight="600">HTTP / SSE</text>
+
+  <!-- ============== Azure OpenAI subsystem ============== -->
+  <rect x="450" y="490" width="525" height="305" rx="18" ry="18" fill="#f6f9ff" stroke="#4a9eed" stroke-width="1.5"/>
+  <image href="icons/openai.svg" x="470" y="505" width="36" height="36"/>
+  <text x="516" y="531" font-size="20" font-weight="600" fill="#1e3a8a">Azure OpenAI Service</text>
+  <text x="470" y="555" font-size="13" fill="#64748b">Responses API  ·  managed identity auth</text>
+
+  <rect x="480" y="575" width="465" height="58" rx="10" ry="10" fill="#ffffff" stroke="#4a9eed" stroke-width="1.5"/>
+  <text x="500" y="603" font-size="17" font-weight="600" fill="#1e3a8a">gpt-5.4-mini</text>
+  <text x="930" y="608" text-anchor="end" font-size="13" fill="#64748b">conversation</text>
+
+  <rect x="480" y="645" width="465" height="58" rx="10" ry="10" fill="#ffffff" stroke="#4a9eed" stroke-width="1.5"/>
+  <text x="500" y="673" font-size="17" font-weight="600" fill="#1e3a8a">gpt-5-nano</text>
+  <text x="930" y="678" text-anchor="end" font-size="13" fill="#64748b">middleware utility</text>
+
+  <rect x="480" y="715" width="465" height="58" rx="10" ry="10" fill="#ffffff" stroke="#4a9eed" stroke-width="1.5"/>
+  <text x="500" y="743" font-size="17" font-weight="600" fill="#1e3a8a">text-embedding-3-small</text>
+  <text x="930" y="748" text-anchor="end" font-size="13" fill="#64748b">vectors</text>
+
+  <!-- ============== Postgres + pgvector subsystem ============== -->
+  <rect x="1005" y="490" width="525" height="305" rx="18" ry="18" fill="#f6f9ff" stroke="#4a9eed" stroke-width="1.5"/>
+  <image href="icons/postgres.svg" x="1025" y="505" width="36" height="36"/>
+  <text x="1071" y="531" font-size="20" font-weight="600" fill="#1e3a8a">Azure Database for PostgreSQL  +  pgvector</text>
+  <text x="1025" y="555" font-size="13" fill="#64748b">Flexible Server  ·  private VNet  ·  managed identity auth</text>
+
+  <rect x="1035" y="575" width="465" height="58" rx="10" ry="10" fill="#ffffff" stroke="#4a9eed" stroke-width="1.5"/>
+  <text x="1055" y="603" font-size="17" font-weight="600" fill="#1e3a8a">Catalog  ·  Customers  ·  Orders</text>
+  <text x="1485" y="608" text-anchor="end" font-size="13" fill="#64748b">relational</text>
+
+  <rect x="1035" y="645" width="465" height="58" rx="10" ry="10" fill="#ffffff" stroke="#4a9eed" stroke-width="1.5"/>
+  <text x="1055" y="673" font-size="17" font-weight="600" fill="#1e3a8a">Embedding cache</text>
+  <text x="1485" y="678" text-anchor="end" font-size="13" fill="#64748b">deployment + query</text>
+
+  <rect x="1035" y="715" width="465" height="58" rx="10" ry="10" fill="#ffffff" stroke="#4a9eed" stroke-width="1.5"/>
+  <text x="1055" y="743" font-size="17" font-weight="600" fill="#1e3a8a">HNSW vector index</text>
+  <text x="1485" y="748" text-anchor="end" font-size="13" fill="#64748b">m = 16,  ef = 64</text>
+
+  <!-- ============== Bottom support strip ============== -->
+  <rect x="450" y="830" width="1080" height="100" rx="16" ry="16" fill="#f6f9ff" stroke="#4a9eed" stroke-width="1.5"/>
+  <text x="470" y="858" font-size="14" font-weight="600" fill="#1e3a8a" letter-spacing="1.5">PLATFORM SERVICES</text>
+
+  <image href="icons/acr.svg" x="475" y="870" width="36" height="36"/>
+  <text x="520" y="893" font-size="16" font-weight="600" fill="#1e3a8a">Container Registry</text>
+  <text x="520" y="912" font-size="13" fill="#64748b">cruefkzvrhdascm</text>
+
+  <image href="icons/managed-identity.svg" x="820" y="870" width="36" height="36"/>
+  <text x="865" y="893" font-size="16" font-weight="600" fill="#1e3a8a">Managed Identity</text>
+  <text x="865" y="912" font-size="13" fill="#64748b">user-assigned  ·  RBAC to AOAI + Postgres</text>
+
+  <image href="icons/appinsights.svg" x="1240" y="870" width="36" height="36"/>
+  <text x="1285" y="893" font-size="16" font-weight="600" fill="#1e3a8a">Application Insights</text>
+  <text x="1285" y="912" font-size="13" fill="#64748b">tracing  ·  metrics  ·  logs</text>
+
+  <!-- ============== Cross-zone arrows ============== -->
+  <!-- Agent -> Azure OpenAI (chat) -->
+  <line x1="700" y1="435" x2="700" y2="490" stroke="#4a9eed" stroke-width="2.5" stroke-dasharray="6 4"/>
+  <polygon points="700,490 694,478 706,478" fill="#4a9eed"/>
+  <text x="710" y="468" font-size="13" fill="#1e3a8a" font-weight="600">chat + utility</text>
+
+  <!-- MCP -> Azure OpenAI (embeddings) curve -->
+  <path d="M 1140 435 C 1140 470, 980 470, 945 490" fill="none" stroke="#06b6d4" stroke-width="2.5"/>
+  <polygon points="945,490 957,486 951,476" fill="#06b6d4"/>
+  <text x="1020" y="478" font-size="13" fill="#0e7490" font-weight="600">embed</text>
+
+  <!-- MCP -> Postgres -->
+  <line x1="1265" y1="435" x2="1265" y2="490" stroke="#4a9eed" stroke-width="2.5"/>
+  <polygon points="1265,490 1259,478 1271,478" fill="#4a9eed"/>
+  <text x="1275" y="468" font-size="13" fill="#1e3a8a" font-weight="600">SQL  +  vector search</text>
+
+  <!-- Footer -->
+  <text x="800" y="985" text-anchor="middle" font-size="14" fill="#64748b">Provisioned with  azd up   ·   Bicep  ·   one-command deploy</text>
+</svg>

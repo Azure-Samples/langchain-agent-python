@@ -15,9 +15,9 @@ description: A multi-step LangChain v1 sales-conversation agent that uses the Az
 
 <!-- YAML front-matter schema: https://review.learn.microsoft.com/en-us/help/contribute/samples/process/onboarding?branch=main#supported-metadata-fields-for-readmemd -->
 
-# LangChain Sales Agent (Handoffs + MCP)
+# LangChain Sales Agent (Responses API + MCP)
 
-A two-service Python sample that shows how to build a **multi-step sales conversation agent** with [LangChain v1 middleware](https://python.langchain.com/), drive it through a 6-step sales funnel using the [handoffs pattern](https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs-customer-support), and back it with a [Model Context Protocol](https://modelcontextprotocol.io/) tool server over [Postgres](https://www.postgresql.org/) with [pgvector](https://github.com/pgvector/pgvector) for semantic search, all powered by [Azure OpenAI](https://learn.microsoft.com/azure/ai-services/openai/). Deploy the whole stack to [Azure Container Apps](https://learn.microsoft.com/azure/container-apps/) with `azd up`.
+A Python sample that shows how to build a **multi-step sales agent** with [LangChain v1](https://python.langchain.com/) and [Azure OpenAI](https://docs.langchain.com/oss/python/integrations/chat/azure_chat_openai), drive sales through a 6-step funnel using the [handoffs pattern](https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs-customer-support), and ground responses in data with a [Model Context Protocol](https://modelcontextprotocol.io/) tool server over [Postgres](https://www.postgresql.org/) with [pgvector](https://github.com/pgvector/pgvector) for semantic search. Deploy the whole stack to [Azure Container Apps](https://learn.microsoft.com/azure/container-apps/) with `azd up`.
 
 ![LangChain MCP Agent](images/app-image.png)
 
@@ -53,30 +53,9 @@ The state machine lives in [`agent/app/middleware/steps.py`](agent/app/middlewar
 
 Two services, deployed independently as Container Apps:
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                        Azure Cloud                          │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │         Azure Container Apps Environment             │   │
-│  │                                                      │   │
-│  │   ┌─────────────────┐       ┌──────────────────┐     │   │
-│  │   │ agent           │──HTTP─│ mcp-server       │     │   │
-│  │   │  LangChain +    │       │  FastMCP +       │     │   │
-│  │   │  Responses API  │◄──────│  Postgres tools  │     │   │
-│  │   └────────┬────────┘       └─────────┬────────┘     │   │
-│  └────────────┼─────────────────────────┼───────────────┘   │
-│               │  Entra ID                │                  │
-│               ▼                          ▼                  │
-│   ┌────────────────────────┐  ┌──────────────────────┐      │
-│   │ Azure OpenAI           │  │ Postgres Flexible    │      │
-│   │  gpt-5-mini            │  │  Server + pgvector   │      │
-│   │  text-embedding-       │  │  Zava retail schema  │      │
-│   │   ada-002              │  │  (~424 products)     │      │
-│   └────────────────────────┘  └──────────────────────┘      │
-└─────────────────────────────────────────────────────────────┘
-```
+![Zava Sales Agent architecture](images/architecture.png)
 
-The agent is the only public-facing service. The MCP server is reachable only from inside the Container Apps environment.
+The agent is the only public-facing service. The MCP server is reachable only from inside the Container Apps environment. All Azure access uses a user-assigned managed identity with RBAC to Azure OpenAI and PostgreSQL.
 
 ## Prerequisites
 
@@ -106,9 +85,7 @@ azd up
 
 - The default region is `eastus2`. Override with `azd env set AZURE_LOCATION <region>` before `azd up`. The `gpt-5.4-mini` and `gpt-5-nano` deployments need a region that has both available (e.g. `eastus2`, `swedencentral`).
 - The postprovision hook adds your current public IP to the Postgres firewall so it can run the seeders. Re-run the hook from a different network with `azd hooks run postprovision`.
-- If `azd up` is interrupted mid-deploy, an Azure deployment may stay `Running` server-side. Re-running too soon yields `DeploymentActive: cannot be saved`. Wait for the Postgres deployment to finish (`az deployment group show -g rg-<env> -n postgres --query properties.provisioningState`), then re-run.
-- Newly created model deployments occasionally take a minute to become reachable; the first call may return `DeploymentNotFound`. Re-running `azd hooks run postprovision` after a minute clears it.
-- The first `azd up` builds two container images with `uv` (much faster than pip-based base images). Subsequent `azd deploy <service>` rebuilds for a single service take ~30–60 seconds.
+- The first `azd up` builds two container images with `uv`. Subsequent `azd deploy <service>` rebuilds for a single service take ~30–60 seconds.
 
 When it finishes you'll see something like:
 
@@ -308,18 +285,18 @@ Application Insights captures every request to `/api/chat`, every MCP tool call,
 
 ## Troubleshooting
 
-| Symptom                                    | Fix                                                                                                                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Deployment quota exceeded`                | Set a different region: `azd env set AZURE_LOCATION eastus2` then re-run `azd up`.                                                                            |
-| `Authentication failed`                    | Re-login with `az login && azd auth login`.                                                                                                                   |
-| `gpt-5.4-mini` not available in region     | Try `eastus2`, `westus`, or `swedencentral`. Verify in the [Azure OpenAI model matrix](https://learn.microsoft.com/azure/ai-services/openai/concepts/models). |
-| `DeploymentActive: cannot be saved`        | A previous `azd up` was cancelled while a sub-deployment (usually Postgres) was still running. Wait for it to finish, then re-run `azd up`.                   |
-| `DeploymentNotFound` from sales-KB seeder  | Newly created model deployments need a minute to propagate. Re-run `azd hooks run postprovision`.                                                             |
-| `ModuleNotFoundError: aiohttp` in seeder   | Delete `.azd-postprovision-venv/` and re-run `azd hooks run postprovision` so it reinstalls cleanly.                                                          |
+| Symptom                                    | Fix                                                                                                                                                                                                            |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Deployment quota exceeded`                | Set a different region: `azd env set AZURE_LOCATION eastus2` then re-run `azd up`.                                                                                                                             |
+| `Authentication failed`                    | Re-login with `az login && azd auth login`.                                                                                                                                                                    |
+| `gpt-5.4-mini` not available in region     | Try `eastus2`, `westus`, or `swedencentral`. Verify in the [Azure OpenAI model matrix](https://learn.microsoft.com/azure/ai-services/openai/concepts/models).                                                  |
+| `DeploymentActive: cannot be saved`        | A previous `azd up` was cancelled while a sub-deployment (usually Postgres) was still running. Wait for it to finish, then re-run `azd up`.                                                                    |
+| `DeploymentNotFound` from sales-KB seeder  | Newly created model deployments need a minute to propagate. Re-run `azd hooks run postprovision`.                                                                                                              |
+| `ModuleNotFoundError: aiohttp` in seeder   | Delete `.azd-postprovision-venv/` and re-run `azd hooks run postprovision` so it reinstalls cleanly.                                                                                                           |
 | `INVALID_CONCURRENT_GRAPH_UPDATE`          | A tool returned a `Command` update for a state key that has no reducer. All scalar keys in `agent/app/state.py` use a `_take_last` reducer; lists use a merging reducer. Add one when you introduce a new key. |
-| Container Apps not starting                | `azd monitor` and inspect the _Revision_ logs in the portal, or `az containerapp logs show`.                                                                  |
-| Agent loads no tools (`mcp_tool_count: 0`) | Check that `MCP_SERVER_URL` points at `https://<mcp-fqdn>/mcp` and that the MCP container is `Running`.                                                       |
-| Semantic search returns nothing            | The seed embeddings must be generated by the same model deployed in your Azure OpenAI account (`text-embedding-3-small`). Re-run `azd hooks run postprovision`. |
+| Container Apps not starting                | `azd monitor` and inspect the _Revision_ logs in the portal, or `az containerapp logs show`.                                                                                                                   |
+| Agent loads no tools (`mcp_tool_count: 0`) | Check that `MCP_SERVER_URL` points at `https://<mcp-fqdn>/mcp` and that the MCP container is `Running`.                                                                                                        |
+| Semantic search returns nothing            | The seed embeddings must be generated by the same model deployed in your Azure OpenAI account (`text-embedding-3-small`). Re-run `azd hooks run postprovision`.                                                |
 
 ## Clean up
 
